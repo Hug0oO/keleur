@@ -77,9 +77,10 @@ class ScheduleCache:
 # ── Main collector ─────────────────────────────────────────────────────
 
 class Collector:
-    def __init__(self):
+    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
         self._running = True
-        self._conn: duckdb.DuckDBPyConnection | None = None
+        self._own_conn = conn is None  # True if we created the connection ourselves
+        self._conn = conn
         self._schedule_cache: ScheduleCache | None = None
         self._buffer: dict[tuple[str, int], dict] = {}  # (trip_id, stop_seq) -> obs
         self._previous_keys: set[tuple[str, int]] = set()
@@ -87,14 +88,21 @@ class Collector:
         self._last_static_refresh: float = 0
         self._consecutive_errors = 0
 
+    def stop(self) -> None:
+        self._running = False
+
     def run(self) -> None:
-        signal.signal(signal.SIGTERM, self._handle_signal)
-        signal.signal(signal.SIGINT, self._handle_signal)
+        # Only register signal handlers from the main thread
+        import threading
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGTERM, self._handle_signal)
+            signal.signal(signal.SIGINT, self._handle_signal)
 
         logger.info("Keleur collector starting")
 
-        # Init database
-        self._conn = database.get_connection()
+        # Init database (use provided connection or create our own)
+        if self._conn is None:
+            self._conn = database.get_connection()
         self._schedule_cache = ScheduleCache(self._conn)
 
         # Initial GTFS static load
@@ -142,7 +150,7 @@ class Collector:
 
         # Graceful shutdown: flush remaining buffer
         self._flush_buffer(self._buffer)
-        if self._conn:
+        if self._own_conn and self._conn:
             self._conn.close()
         logger.info("Collector stopped")
 

@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import threading
 
 import duckdb
 from fastapi import FastAPI, Query
@@ -22,8 +23,20 @@ def get_conn() -> duckdb.DuckDBPyConnection:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _conn
-    _conn = duckdb.connect(str(DB_PATH), read_only=True)
+
+    # Single shared connection for both collector and API
+    from collector import database, config
+    _conn = database.get_connection()
+
+    # Start collector in background thread
+    from collector.main import Collector
+    collector = Collector(conn=_conn)
+    collector_thread = threading.Thread(target=collector.run, daemon=True, name="collector")
+    collector_thread.start()
+
     yield
+
+    collector.stop()
     _conn.close()
 
 
