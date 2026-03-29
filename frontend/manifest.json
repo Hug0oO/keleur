@@ -1,0 +1,16 @@
+{
+  "name": "Keleur - Ponctualit\u00e9 transports Lille",
+  "short_name": "Keleur",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#1a1a2e",
+  "description": "Statistiques de ponctualit\u00e9 des transports en commun Il\u00e9via Lille",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

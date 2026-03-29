@@ -1,12 +1,16 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import duckdb
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from collector.config import DB_PATH
 from . import queries
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 _conn: duckdb.DuckDBPyConnection | None = None
 
@@ -149,3 +153,14 @@ def overview():
         "avg_delay_seconds": row[5],
         "on_time_percent": round(row[6], 1) if row[6] else None,
     }
+
+
+# ── Frontend static files ─────────────────────────────────────────────
+
+@app.get("/")
+def serve_index():
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+# Mount static files AFTER API routes so /api/* takes priority
+app.mount("/", StaticFiles(directory=str(FRONTEND_DIR)), name="frontend")

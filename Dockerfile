@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY collector/ collector/
 COPY api/ api/
+COPY frontend/ frontend/
 
 VOLUME /app/data
 
