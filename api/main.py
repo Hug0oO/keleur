@@ -1,0 +1,151 @@
+from contextlib import asynccontextmanager
+
+import duckdb
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from collector.config import DB_PATH
+from . import queries
+
+_conn: duckdb.DuckDBPyConnection | None = None
+
+
+def get_conn() -> duckdb.DuckDBPyConnection:
+    return _conn
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _conn
+    _conn = duckdb.connect(str(DB_PATH), read_only=True)
+    yield
+    _conn.close()
+
+
+app = FastAPI(title="Keleur API", version="0.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+
+# ── Routes list ────────────────────────────────────────────────────────
+
+@app.get("/api/routes")
+def list_routes():
+    """All routes that have at least one observation."""
+    rows = get_conn().execute("""
+        SELECT r.route_id, r.short_name, r.long_name, r.route_type, r.color,
+               count(DISTINCT o.stop_id) as stops_observed,
+               count(*) as total_observations
+        FROM routes r
+        INNER JOIN delay_observations o ON r.route_id = o.route_id
+        GROUP BY r.route_id, r.short_name, r.long_name, r.route_type, r.color
+        ORDER BY r.route_type, r.short_name
+    """).fetchall()
+    return [
+        {
+            "route_id": r[0], "short_name": r[1], "long_name": r[2],
+            "route_type": r[3], "color": r[4],
+            "stops_observed": r[5], "total_observations": r[6],
+        }
+        for r in rows
+    ]
+
+
+# ── Stops for a route ─────────────────────────────────────────────────
+
+@app.get("/api/routes/{route_id}/stops")
+def route_stops(route_id: str, direction_id: int = Query(default=0)):
+    """Stops served on a route (from observed data)."""
+    rows = get_conn().execute("""
+        SELECT DISTINCT o.stop_id, s.stop_name, s.lat, s.lon, o.direction_id
+        FROM delay_observations o
+        LEFT JOIN stops s ON o.stop_id = s.stop_id
+        WHERE o.route_id = ? AND o.direction_id = ?
+        ORDER BY s.stop_name
+    """, [route_id, direction_id]).fetchall()
+    return [
+        {"stop_id": r[0], "stop_name": r[1], "lat": r[2], "lon": r[3], "direction_id": r[4]}
+        for r in rows
+    ]
+
+
+# ── Stats for a (route, stop, direction) ──────────────────────────────
+
+@app.get("/api/stats")
+def delay_stats(
+    route_id: str,
+    stop_id: str,
+    direction_id: int = Query(default=0),
+    time_from: str = Query(default=None, description="HH:MM"),
+    time_to: str = Query(default=None, description="HH:MM"),
+    days: int = Query(default=30, description="Lookback in days"),
+):
+    """Aggregated delay statistics for a specific route/stop/direction."""
+    return queries.get_delay_stats(
+        get_conn(), route_id, stop_id, direction_id, time_from, time_to, days
+    )
+
+
+# ── Stats by day of week ──────────────────────────────────────────────
+
+@app.get("/api/stats/by-day")
+def stats_by_day(
+    route_id: str,
+    stop_id: str,
+    direction_id: int = Query(default=0),
+    time_from: str = Query(default=None, description="HH:MM"),
+    time_to: str = Query(default=None, description="HH:MM"),
+    days: int = Query(default=30),
+):
+    """Delay statistics broken down by day of week."""
+    return queries.get_stats_by_day_of_week(
+        get_conn(), route_id, stop_id, direction_id, time_from, time_to, days
+    )
+
+
+# ── Stats by hour ─────────────────────────────────────────────────────
+
+@app.get("/api/stats/by-hour")
+def stats_by_hour(
+    route_id: str,
+    stop_id: str,
+    direction_id: int = Query(default=0),
+    days: int = Query(default=30),
+):
+    """Delay statistics broken down by hour of day."""
+    return queries.get_stats_by_hour(
+        get_conn(), route_id, stop_id, direction_id, days
+    )
+
+
+# ── Global overview ───────────────────────────────────────────────────
+
+@app.get("/api/overview")
+def overview():
+    """Global stats: data range, total observations, routes covered."""
+    row = get_conn().execute("""
+        SELECT
+            count(*) as total_obs,
+            min(observed_at) as first_obs,
+            max(observed_at) as last_obs,
+            count(DISTINCT route_id) as routes,
+            count(DISTINCT stop_id) as stops,
+            round(avg(delay_seconds), 1) as avg_delay,
+            count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct
+        FROM delay_observations
+    """).fetchone()
+    return {
+        "total_observations": row[0],
+        "first_observation": str(row[1]) if row[1] else None,
+        "last_observation": str(row[2]) if row[2] else None,
+        "routes_count": row[3],
+        "stops_count": row[4],
+        "avg_delay_seconds": row[5],
+        "on_time_percent": round(row[6], 1) if row[6] else None,
+    }

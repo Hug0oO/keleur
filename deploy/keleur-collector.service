@@ -1,0 +1,20 @@
+[Unit]
+Description=Keleur GTFS-RT delay collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=keleur
+WorkingDirectory=/opt/keleur
+ExecStart=/opt/keleur/.venv/bin/python -m collector.main
+Restart=always
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/keleur/data
+
+[Install]
+WantedBy=multi-user.target
