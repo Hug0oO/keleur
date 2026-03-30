@@ -195,6 +195,21 @@ def stats_by_hour(
     )
 
 
+# ── Route-level stats (all stops) ─────────────────────────────────────
+
+@app.get("/api/routes/{route_id}/stats")
+def route_global_stats(route_id: str, days: int = Query(default=30)):
+    return queries.get_route_stats(get_conn(), route_id, days)
+
+@app.get("/api/routes/{route_id}/stats/by-day")
+def route_stats_by_day(route_id: str, days: int = Query(default=30)):
+    return queries.get_route_stats_by_day(get_conn(), route_id, days)
+
+@app.get("/api/routes/{route_id}/stats/by-hour")
+def route_stats_by_hour(route_id: str, days: int = Query(default=30)):
+    return queries.get_route_stats_by_hour(get_conn(), route_id, days)
+
+
 # ── Rankings ──────────────────────────────────────────────────
 
 @app.get("/api/rankings/stops")
@@ -208,7 +223,8 @@ def rankings_stops():
             t.trip_headsign,
             round(avg(o.delay_seconds), 1) as avg_delay_seconds,
             round(count(CASE WHEN abs(o.delay_seconds) < 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
-            count(*) as total_passages
+            count(*) as total_passages,
+            r.route_id
         FROM delay_observations o
         JOIN stops s ON o.stop_id = s.stop_id
         JOIN trips t ON o.trip_id = t.trip_id
@@ -223,6 +239,7 @@ def rankings_stops():
             "stop_name": r[0], "short_name": r[1], "color": r[2],
             "headsign": r[3], "avg_delay_seconds": r[4],
             "on_time_percent": r[5], "total_passages": r[6],
+            "route_id": r[7],
         }
         for r in rows
     ]

@@ -23,6 +23,7 @@ function route() {
   });
 
   if (parts[0] === "" || parts[0] === undefined) return viewOverview();
+  if (parts[0] === "route-stats" && parts[1]) return viewRouteStats(decodeURIComponent(parts[1]));
   if (parts[0] === "route" && parts[1]) return viewRoute(decodeURIComponent(parts[1]));
   if (parts[0] === "rankings") return viewRankings();
   if (parts[0] === "trips") return viewTrips();
@@ -333,6 +334,80 @@ async function viewRoute(routeId) {
   }
 }
 
+// ── View: Route global stats ─────────────────────────────────
+
+async function viewRouteStats(routeId) {
+  app().innerHTML = loading();
+
+  try {
+    const [routes, stats, byDay, byHour] = await Promise.all([
+      api("/routes"),
+      api(`/routes/${encodeURIComponent(routeId)}/stats`),
+      api(`/routes/${encodeURIComponent(routeId)}/stats/by-day`),
+      api(`/routes/${encodeURIComponent(routeId)}/stats/by-hour`),
+    ]);
+
+    const routeInfo = routes.find((r) => r.route_id === routeId) || {};
+
+    if (stats.total_observations === 0) {
+      app().innerHTML = `
+        <a href="#/" class="back-link">&larr; Retour</a>
+        <div class="empty"><div class="empty-text">Pas encore de donn&eacute;es pour cette ligne</div></div>
+      `;
+      return;
+    }
+
+    app().innerHTML = `
+      <a href="#/" class="back-link">&larr; Retour</a>
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem">
+        ${routeBadge(routeInfo.short_name || routeId, routeInfo.color)}
+        <div>
+          <div style="font-weight:700;font-size:1.1rem">${routeInfo.long_name || routeId}</div>
+          <div style="font-size:0.85rem;color:var(--text-muted)">Statistiques globales de la ligne</div>
+        </div>
+      </div>
+
+      <div class="card-grid">
+        <div class="stat-card">
+          <div class="value ${stats.on_time_percent >= 70 ? "green" : stats.on_time_percent >= 50 ? "orange" : "red"}">${stats.on_time_percent.toFixed(0)}%</div>
+          <div class="label">&Agrave; l'heure</div>
+        </div>
+        <div class="stat-card">
+          <div class="value red">${stats.avg_late_delay_seconds ? formatDelay(Math.round(stats.avg_late_delay_seconds), true) : "-"}</div>
+          <div class="label">Retard moyen</div>
+        </div>
+        <div class="stat-card">
+          <div class="value blue">${stats.total_observations.toLocaleString("fr")}</div>
+          <div class="label">Passages mesur&eacute;s</div>
+        </div>
+        <div class="stat-card">
+          <div class="value ${stats.late_5min_percent <= 10 ? "green" : stats.late_5min_percent <= 25 ? "orange" : "red"}">${stats.late_5min_percent.toFixed(0)}%</div>
+          <div class="label">&gt; 5 min de retard</div>
+        </div>
+      </div>
+      <div style="margin-bottom:1rem;text-align:center">
+        <div style="font-size:0.8rem;color:var(--text-muted)">Depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
+      </div>
+
+      <h2 class="section-title">Par jour de la semaine</h2>
+      <div class="card">
+        ${barChart(byDay, "day_name", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
+      </div>
+
+      <h2 class="section-title">Par heure</h2>
+      <div class="card">
+        ${barChart(byHour.map((h) => ({ ...h, label: h.hour + "h" })), "label", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
+      </div>
+
+      <div style="margin-top:1.5rem;text-align:center">
+        <a href="#/route/${encodeURIComponent(routeId)}" class="btn btn-outline">D&eacute;tail par arr&ecirc;t</a>
+      </div>
+    `;
+  } catch (err) {
+    app().innerHTML = `<div class="empty"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-text">Erreur: ${err.message}</div></div>`;
+  }
+}
+
 // ── View: Rankings ───────────────────────────────────────────
 
 async function viewRankings() {
@@ -347,7 +422,7 @@ async function viewRankings() {
     function renderStopList(items) {
       if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
       return items.map((s, i) => `
-        <div class="ranking-item">
+        <a href="#/route/${encodeURIComponent(s.route_id)}" class="ranking-item">
           <span class="ranking-rank">#${i + 1}</span>
           ${routeBadge(s.short_name, s.color)}
           <div class="ranking-info">
@@ -358,14 +433,14 @@ async function viewRankings() {
             <div class="delay-value" style="color:${delayColorCSS(s.avg_delay_seconds)}">${formatDelay(s.avg_delay_seconds, true)}</div>
             <div class="ranking-ontime">${s.on_time_percent}% &agrave; l'heure</div>
           </div>
-        </div>
+        </a>
       `).join("");
     }
 
     function renderRouteList(items) {
       if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
       return items.map((r, i) => `
-        <a href="#/route/${encodeURIComponent(r.route_id)}" class="ranking-item">
+        <a href="#/route-stats/${encodeURIComponent(r.route_id)}" class="ranking-item">
           <span class="ranking-rank">#${i + 1}</span>
           ${routeBadge(r.short_name, r.color)}
           <div class="ranking-info">

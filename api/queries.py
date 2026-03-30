@@ -145,3 +145,81 @@ def get_stats_by_hour(
         }
         for r in rows
     ]
+
+
+# ── Route-level stats (all stops combined) ───────────────────────────
+
+def get_route_stats(conn, route_id: str, days: int) -> dict:
+    row = conn.execute("""
+        SELECT
+            count(*) as total,
+            round(avg(delay_seconds), 1) as avg_delay,
+            count(CASE WHEN abs(delay_seconds) < 60 THEN 1 END) * 100.0 / count(*) as on_time_pct,
+            count(CASE WHEN delay_seconds > 300 THEN 1 END) * 100.0 / count(*) as late_5min_pct,
+            round(avg(CASE WHEN delay_seconds >= 60 THEN delay_seconds END), 0) as avg_late_delay,
+            min(observed_at) as first_obs,
+            max(observed_at) as last_obs
+        FROM delay_observations
+        WHERE route_id = ?
+          AND observed_at >= current_date - INTERVAL (?) DAY
+    """, [route_id, days]).fetchone()
+
+    if row[0] == 0:
+        return {"total_observations": 0, "message": "No data"}
+
+    return {
+        "total_observations": row[0],
+        "avg_delay_seconds": row[1],
+        "on_time_percent": round(row[2], 1),
+        "late_5min_percent": round(row[3], 1),
+        "avg_late_delay_seconds": row[4],
+        "first_observation": str(row[5]),
+        "last_observation": str(row[6]),
+    }
+
+
+def get_route_stats_by_day(conn, route_id: str, days: int) -> list[dict]:
+    rows = conn.execute("""
+        SELECT
+            dayofweek(observed_at) as dow,
+            count(*) as total,
+            round(avg(delay_seconds), 1) as avg_delay
+        FROM delay_observations
+        WHERE route_id = ?
+          AND observed_at >= current_date - INTERVAL (?) DAY
+        GROUP BY dayofweek(observed_at)
+        ORDER BY dayofweek(observed_at)
+    """, [route_id, days]).fetchall()
+
+    return [
+        {
+            "day_of_week": r[0],
+            "day_name": _DAY_NAMES[r[0] - 1] if 1 <= r[0] <= 7 else str(r[0]),
+            "total_observations": r[1],
+            "avg_delay_seconds": r[2],
+        }
+        for r in rows
+    ]
+
+
+def get_route_stats_by_hour(conn, route_id: str, days: int) -> list[dict]:
+    rows = conn.execute("""
+        SELECT
+            hour(scheduled_dep) as h,
+            count(*) as total,
+            round(avg(delay_seconds), 1) as avg_delay
+        FROM delay_observations
+        WHERE route_id = ?
+          AND observed_at >= current_date - INTERVAL (?) DAY
+        GROUP BY hour(scheduled_dep)
+        ORDER BY hour(scheduled_dep)
+    """, [route_id, days]).fetchall()
+
+    return [
+        {
+            "hour": r[0],
+            "total_observations": r[1],
+            "avg_delay_seconds": r[2],
+        }
+        for r in rows
+    ]
