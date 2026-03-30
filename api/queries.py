@@ -44,7 +44,8 @@ def get_delay_stats(
             count(CASE WHEN delay_seconds > 120 THEN 1 END) * 100.0 / count(*) as late_2min_pct,
             count(CASE WHEN delay_seconds > 300 THEN 1 END) * 100.0 / count(*) as late_5min_pct,
             min(observed_at) as first_obs,
-            max(observed_at) as last_obs
+            max(observed_at) as last_obs,
+            round(avg(CASE WHEN delay_seconds >= 60 THEN delay_seconds END), 0) as avg_late_delay
         FROM delay_observations
         WHERE route_id = ?
           AND stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.stop_name = (SELECT s1.stop_name FROM stops s1 WHERE s1.stop_id = ?))
@@ -67,6 +68,7 @@ def get_delay_stats(
         "late_5min_percent": round(row[8], 1),
         "first_observation": str(row[9]),
         "last_observation": str(row[10]),
+        "avg_late_delay_seconds": row[11],
     }
 
 

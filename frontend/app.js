@@ -250,24 +250,24 @@ async function viewRoute(routeId) {
         $("#route-stats").innerHTML = `
           <div class="card-grid">
             <div class="stat-card">
-              <div class="value ${delayColor(stats.avg_delay_seconds)}">${formatDelay(Math.round(stats.avg_delay_seconds))}</div>
-              <div class="label">Ponctualit&eacute; moyenne</div>
-            </div>
-            <div class="stat-card">
-              <div class="value ${delayColor(stats.median_delay_seconds)}">${formatDelay(Math.round(stats.median_delay_seconds))}</div>
-              <div class="label">Ponctualit&eacute; m&eacute;diane</div>
-            </div>
-            <div class="stat-card">
               <div class="value ${stats.on_time_percent >= 70 ? "green" : stats.on_time_percent >= 50 ? "orange" : "red"}">${stats.on_time_percent.toFixed(0)}%</div>
               <div class="label">&Agrave; l'heure</div>
             </div>
             <div class="stat-card">
+              <div class="value red">${stats.avg_late_delay_seconds ? formatDelay(Math.round(stats.avg_late_delay_seconds), true) : "-"}</div>
+              <div class="label">Retard moyen</div>
+            </div>
+            <div class="stat-card">
+              <div class="value blue">${stats.total_observations}</div>
+              <div class="label">Passages mesur&eacute;s</div>
+            </div>
+            <div class="stat-card">
               <div class="value ${stats.late_5min_percent <= 10 ? "green" : stats.late_5min_percent <= 25 ? "orange" : "red"}">${stats.late_5min_percent.toFixed(0)}%</div>
-              <div class="label">&gt; 5min retard</div>
+              <div class="label">&gt; 5 min de retard</div>
             </div>
           </div>
-          <div class="stat-card" style="margin-bottom:1rem;text-align:center">
-            <div style="font-size:0.8rem;color:var(--text-muted)">${stats.total_observations} passages mesur&eacute;s depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
+          <div style="margin-bottom:1rem;text-align:center">
+            <div style="font-size:0.8rem;color:var(--text-muted)">Depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
           </div>
 
           <h2 class="section-title">Par jour de la semaine</h2>
