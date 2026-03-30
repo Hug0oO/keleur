@@ -3,7 +3,7 @@
 import duckdb
 
 # Day names for output
-_DAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+_DAY_NAMES = {0: "Dimanche", 1: "Lundi", 2: "Mardi", 3: "Mercredi", 4: "Jeudi", 5: "Vendredi", 6: "Samedi"}
 
 
 def _time_filter(time_from: str | None, time_to: str | None) -> tuple[str, list]:
@@ -97,13 +97,13 @@ def get_stats_by_day_of_week(
           AND observed_at >= current_date - INTERVAL (?) DAY
           {time_clause}
         GROUP BY dayofweek(observed_at)
-        ORDER BY dayofweek(observed_at)
+        ORDER BY (dayofweek(observed_at) + 6) % 7
     """, params).fetchall()
 
     return [
         {
             "day_of_week": r[0],
-            "day_name": _DAY_NAMES[r[0] - 1] if 1 <= r[0] <= 7 else str(r[0]),
+            "day_name": _DAY_NAMES.get(r[0], str(r[0])),
             "total_observations": r[1],
             "avg_delay_seconds": r[2],
             "median_delay_seconds": r[3],
@@ -188,13 +188,13 @@ def get_route_stats_by_day(conn, route_id: str, days: int) -> list[dict]:
         WHERE route_id = ?
           AND observed_at >= current_date - INTERVAL (?) DAY
         GROUP BY dayofweek(observed_at)
-        ORDER BY dayofweek(observed_at)
+        ORDER BY (dayofweek(observed_at) + 6) % 7
     """, [route_id, days]).fetchall()
 
     return [
         {
             "day_of_week": r[0],
-            "day_name": _DAY_NAMES[r[0] - 1] if 1 <= r[0] <= 7 else str(r[0]),
+            "day_name": _DAY_NAMES.get(r[0], str(r[0])),
             "total_observations": r[1],
             "avg_delay_seconds": r[2],
         }
