@@ -227,8 +227,8 @@ def rankings_stops():
         for r in rows
     ]
 
-    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:10]
-    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:10]
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:3]
+    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:3]
     return {"worst": worst, "best": best}
 
 
@@ -260,8 +260,8 @@ def rankings_routes():
         for r in rows
     ]
 
-    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:10]
-    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:10]
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:3]
+    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:3]
     return {"worst": worst, "best": best}
 
 

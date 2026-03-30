@@ -346,8 +346,9 @@ async function viewRankings() {
 
     function renderStopList(items) {
       if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
-      return items.map((s) => `
+      return items.map((s, i) => `
         <div class="ranking-item">
+          <span class="ranking-rank">#${i + 1}</span>
           ${routeBadge(s.short_name, s.color)}
           <div class="ranking-info">
             <div class="ranking-name">${s.stop_name}</div>
@@ -355,7 +356,7 @@ async function viewRankings() {
           </div>
           <div class="ranking-delay">
             <div class="delay-value" style="color:${delayColorCSS(s.avg_delay_seconds)}">${formatDelay(s.avg_delay_seconds, true)}</div>
-            <div class="ranking-ontime">${s.on_time_percent}% ponctuel</div>
+            <div class="ranking-ontime">${s.on_time_percent}% &agrave; l'heure</div>
           </div>
         </div>
       `).join("");
@@ -363,8 +364,9 @@ async function viewRankings() {
 
     function renderRouteList(items) {
       if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
-      return items.map((r) => `
+      return items.map((r, i) => `
         <a href="#/route/${encodeURIComponent(r.route_id)}" class="ranking-item">
+          <span class="ranking-rank">#${i + 1}</span>
           ${routeBadge(r.short_name, r.color)}
           <div class="ranking-info">
             <div class="ranking-name">${r.long_name}</div>
@@ -372,7 +374,7 @@ async function viewRankings() {
           </div>
           <div class="ranking-delay">
             <div class="delay-value" style="color:${delayColorCSS(r.avg_delay_seconds)}">${formatDelay(r.avg_delay_seconds, true)}</div>
-            <div class="ranking-ontime">${r.on_time_percent}% ponctuel</div>
+            <div class="ranking-ontime">${r.on_time_percent}% &agrave; l'heure</div>
           </div>
         </a>
       `).join("");

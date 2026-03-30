@@ -298,6 +298,15 @@ select:focus, .btn:focus { outline: 2px solid var(--accent); outline-offset: -1p
 }
 .ranking-item:hover { background: var(--bg-card-hover); }
 
+.ranking-rank {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  min-width: 2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 .ranking-info { flex: 1; min-width: 0; }
 .ranking-name {
   font-weight: 600;
