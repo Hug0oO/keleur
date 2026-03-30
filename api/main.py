@@ -75,29 +75,68 @@ def list_routes():
     ]
 
 
+# ── Directions for a route ────────────────────────────────────────────
+
+@app.get("/api/routes/{route_id}/directions")
+def route_directions(route_id: str):
+    """Available directions (headsigns) for a route."""
+    rows = get_conn().execute("""
+        SELECT DISTINCT t.direction_id, t.trip_headsign
+        FROM trips t
+        WHERE t.route_id = ?
+        ORDER BY t.direction_id, t.trip_headsign
+    """, [route_id]).fetchall()
+    return [
+        {"direction_id": r[0], "headsign": r[1]}
+        for r in rows
+    ]
+
+
 # ── Stops for a route ─────────────────────────────────────────────────
 
 @app.get("/api/routes/{route_id}/stops")
-def route_stops(route_id: str, direction_id: int = Query(default=0)):
-    """Stops served on a route (from observed data)."""
-    rows = get_conn().execute("""
-        WITH stop_order AS (
-            SELECT st.stop_id, avg(st.stop_sequence) as avg_seq
-            FROM stop_times st
-            JOIN trips t ON st.trip_id = t.trip_id
-            WHERE t.route_id = ? AND t.direction_id = ?
-            GROUP BY st.stop_id
-        )
+def route_stops(
+    route_id: str,
+    direction_id: int = Query(default=0),
+    headsign: str = Query(default=None),
+):
+    """Stops served on a route, filtered by direction and optionally headsign."""
+    # Build headsign filter for stop ordering (uses trips that match this headsign)
+    if headsign:
+        order_query = """
+            WITH stop_order AS (
+                SELECT st.stop_id, avg(st.stop_sequence) as avg_seq
+                FROM stop_times st
+                JOIN trips t ON st.trip_id = t.trip_id
+                WHERE t.route_id = ? AND t.direction_id = ? AND t.trip_headsign = ?
+                GROUP BY st.stop_id
+            )
+        """
+        order_params = [route_id, direction_id, headsign]
+    else:
+        order_query = """
+            WITH stop_order AS (
+                SELECT st.stop_id, avg(st.stop_sequence) as avg_seq
+                FROM stop_times st
+                JOIN trips t ON st.trip_id = t.trip_id
+                WHERE t.route_id = ? AND t.direction_id = ?
+                GROUP BY st.stop_id
+            )
+        """
+        order_params = [route_id, direction_id]
+
+    rows = get_conn().execute(f"""
+        {order_query}
         SELECT min(o.stop_id) as stop_id, s.stop_name,
                avg(s.lat) as lat, avg(s.lon) as lon, o.direction_id,
                min(so.avg_seq) as seq
         FROM delay_observations o
         LEFT JOIN stops s ON o.stop_id = s.stop_id
-        LEFT JOIN stop_order so ON o.stop_id = so.stop_id
+        INNER JOIN stop_order so ON o.stop_id = so.stop_id
         WHERE o.route_id = ? AND o.direction_id = ?
         GROUP BY s.stop_name, o.direction_id
         ORDER BY seq, s.stop_name
-    """, [route_id, direction_id, route_id, direction_id]).fetchall()
+    """, order_params + [route_id, direction_id]).fetchall()
     return [
         {"stop_id": r[0], "stop_name": r[1], "lat": r[2], "lon": r[3], "direction_id": r[4]}
         for r in rows

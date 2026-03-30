@@ -168,14 +168,22 @@ async function viewRoute(routeId) {
   app().innerHTML = loading();
 
   try {
-    const [routes, stops0, stops1] = await Promise.all([
+    const [routes, directions] = await Promise.all([
       api("/routes"),
-      api(`/routes/${encodeURIComponent(routeId)}/stops?direction_id=0`),
-      api(`/routes/${encodeURIComponent(routeId)}/stops?direction_id=1`),
+      api(`/routes/${encodeURIComponent(routeId)}/directions`),
     ]);
 
     const routeInfo = routes.find((r) => r.route_id === routeId) || {};
-    const allStops = { 0: stops0, 1: stops1 };
+
+    // Build direction options from headsigns
+    const dirOptions = directions.length
+      ? directions.map((d) => ({ dir: d.direction_id, headsign: d.headsign, key: `${d.direction_id}:${d.headsign}` }))
+      : [{ dir: 0, headsign: null, key: "0:" }, { dir: 1, headsign: null, key: "1:" }];
+
+    // Load initial stops
+    const firstOpt = dirOptions[0];
+    const hsParam = firstOpt.headsign ? `&headsign=${encodeURIComponent(firstOpt.headsign)}` : "";
+    const initialStops = await api(`/routes/${encodeURIComponent(routeId)}/stops?direction_id=${firstOpt.dir}${hsParam}`);
 
     app().innerHTML = `
       <a href="#/" class="back-link">&larr; Retour</a>
@@ -189,11 +197,10 @@ async function viewRoute(routeId) {
 
       <div class="select-group">
         <select id="sel-dir">
-          <option value="0">Direction A</option>
-          <option value="1">Direction B</option>
+          ${dirOptions.map((d, i) => `<option value="${i}">${d.headsign ? "Vers " + d.headsign : "Direction " + (d.dir === 0 ? "A" : "B")}</option>`).join("")}
         </select>
         <select id="sel-stop">
-          ${stops0.map((s) => `<option value="${s.stop_id}">${s.stop_name}</option>`).join("")}
+          ${initialStops.map((s) => `<option value="${s.stop_id}">${s.stop_name}</option>`).join("")}
         </select>
         <button class="btn btn-outline btn-sm" id="btn-save-trip">Sauvegarder</button>
       </div>
@@ -204,21 +211,31 @@ async function viewRoute(routeId) {
     const selDir = $("#sel-dir");
     const selStop = $("#sel-stop");
 
-    function updateStopOptions() {
-      const dir = selDir.value;
-      const stops = allStops[dir] || [];
+    // Cache loaded stops per direction
+    const stopsCache = { 0: initialStops };
+
+    async function updateStopOptions() {
+      const idx = parseInt(selDir.value);
+      if (!stopsCache[idx]) {
+        const opt = dirOptions[idx];
+        const hs = opt.headsign ? `&headsign=${encodeURIComponent(opt.headsign)}` : "";
+        stopsCache[idx] = await api(`/routes/${encodeURIComponent(routeId)}/stops?direction_id=${opt.dir}${hs}`);
+      }
+      const stops = stopsCache[idx] || [];
       selStop.innerHTML = stops.map((s) => `<option value="${s.stop_id}">${s.stop_name}</option>`).join("");
       if (!stops.length) selStop.innerHTML = `<option>Aucun arr&ecirc;t</option>`;
     }
 
     async function loadStats() {
-      const dir = selDir.value;
+      const idx = parseInt(selDir.value);
+      const opt = dirOptions[idx];
       const stopId = selStop.value;
       if (!stopId) return;
 
       $("#route-stats").innerHTML = loading();
 
       try {
+        const dir = opt.dir;
         const [stats, byDay, byHour] = await Promise.all([
           api(`/stats?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}&direction_id=${dir}`),
           api(`/stats/by-day?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}&direction_id=${dir}`),
@@ -280,11 +297,13 @@ async function viewRoute(routeId) {
       }
     }
 
-    selDir.addEventListener("change", () => { updateStopOptions(); loadStats(); });
+    selDir.addEventListener("change", async () => { await updateStopOptions(); loadStats(); });
     selStop.addEventListener("change", loadStats);
 
     // Save trip button
     $("#btn-save-trip").addEventListener("click", () => {
+      const idx = parseInt(selDir.value);
+      const opt = dirOptions[idx];
       const trips = getTrips();
       const trip = {
         route_id: routeId,
@@ -293,7 +312,7 @@ async function viewRoute(routeId) {
         color: routeInfo.color,
         stop_id: selStop.value,
         stop_name: selStop.options[selStop.selectedIndex]?.text,
-        direction_id: parseInt(selDir.value),
+        direction_id: opt.dir,
       };
       // Avoid duplicates
       const exists = trips.some(
