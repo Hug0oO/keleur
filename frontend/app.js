@@ -118,19 +118,19 @@ async function viewOverview() {
       <div class="card-grid">
         <div class="stat-card">
           <div class="value blue">${overview.total_observations.toLocaleString("fr")}</div>
-          <div class="label">Observations</div>
+          <div class="label">Passages mesur&eacute;s</div>
         </div>
         <div class="stat-card">
           <div class="value blue">${overview.routes_count}</div>
           <div class="label">Lignes suivies</div>
         </div>
         <div class="stat-card">
-          <div class="value ${delayColor(overview.avg_delay_seconds)}">${formatDelay(Math.round(overview.avg_delay_seconds))}</div>
-          <div class="label">Ponctualit&eacute; moyenne</div>
-        </div>
-        <div class="stat-card">
           <div class="value ${overview.on_time_percent >= 70 ? "green" : overview.on_time_percent >= 50 ? "orange" : "red"}">${overview.on_time_percent?.toFixed(0) ?? "-"}%</div>
           <div class="label">&Agrave; l'heure</div>
+        </div>
+        <div class="stat-card">
+          <div class="value red">${formatDelay(Math.round(overview.avg_late_delay_seconds), true)}</div>
+          <div class="label">Retard moyen</div>
         </div>
       </div>
 
@@ -143,7 +143,7 @@ async function viewOverview() {
                 ${routeBadge(r.short_name, r.color)}
                 <div class="route-info">
                   <div class="route-name">${r.long_name}</div>
-                  <div class="route-meta">${r.total_observations} obs &middot; ${r.stops_observed} arr&ecirc;ts</div>
+                  <div class="route-meta">${r.total_observations} passages &middot; ${r.stops_observed} arr&ecirc;ts</div>
                 </div>
               </a>
             `).join("")}
@@ -192,7 +192,7 @@ async function viewRoute(routeId) {
         ${routeBadge(routeInfo.short_name || routeId, routeInfo.color)}
         <div>
           <div style="font-weight:700;font-size:1.1rem">${routeInfo.long_name || routeId}</div>
-          <div style="font-size:0.85rem;color:var(--text-muted)">${routeInfo.total_observations || 0} observations</div>
+          <div style="font-size:0.85rem;color:var(--text-muted)">${routeInfo.total_observations || 0} passages mesur&eacute;s</div>
         </div>
       </div>
 
@@ -267,7 +267,7 @@ async function viewRoute(routeId) {
             </div>
           </div>
           <div class="stat-card" style="margin-bottom:1rem;text-align:center">
-            <div style="font-size:0.8rem;color:var(--text-muted)">${stats.total_observations} observations depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">${stats.total_observations} passages mesur&eacute;s depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
           </div>
 
           <h2 class="section-title">Par jour de la semaine</h2>
