@@ -81,10 +81,12 @@ def list_routes():
 def route_stops(route_id: str, direction_id: int = Query(default=0)):
     """Stops served on a route (from observed data)."""
     rows = get_conn().execute("""
-        SELECT DISTINCT o.stop_id, s.stop_name, s.lat, s.lon, o.direction_id
+        SELECT min(o.stop_id) as stop_id, s.stop_name,
+               avg(s.lat) as lat, avg(s.lon) as lon, o.direction_id
         FROM delay_observations o
         LEFT JOIN stops s ON o.stop_id = s.stop_id
         WHERE o.route_id = ? AND o.direction_id = ?
+        GROUP BY s.stop_name, o.direction_id
         ORDER BY s.stop_name
     """, [route_id, direction_id]).fetchall()
     return [
