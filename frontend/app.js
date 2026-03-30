@@ -182,8 +182,8 @@ async function viewRoute(routeId) {
 
     // Load initial stops
     const firstOpt = dirOptions[0];
-    const hsParam = firstOpt.headsign ? `&headsign=${encodeURIComponent(firstOpt.headsign)}` : "";
-    const initialStops = await api(`/routes/${encodeURIComponent(routeId)}/stops?direction_id=${firstOpt.dir}${hsParam}`);
+    const hsParam = firstOpt.headsign ? `headsign=${encodeURIComponent(firstOpt.headsign)}` : "";
+    const initialStops = await api(`/routes/${encodeURIComponent(routeId)}/stops?${hsParam}`);
 
     app().innerHTML = `
       <a href="#/" class="back-link">&larr; Retour</a>
@@ -218,8 +218,8 @@ async function viewRoute(routeId) {
       const idx = parseInt(selDir.value);
       if (!stopsCache[idx]) {
         const opt = dirOptions[idx];
-        const hs = opt.headsign ? `&headsign=${encodeURIComponent(opt.headsign)}` : "";
-        stopsCache[idx] = await api(`/routes/${encodeURIComponent(routeId)}/stops?direction_id=${opt.dir}${hs}`);
+        const hs = opt.headsign ? `headsign=${encodeURIComponent(opt.headsign)}` : "";
+        stopsCache[idx] = await api(`/routes/${encodeURIComponent(routeId)}/stops?${hs}`);
       }
       const stops = stopsCache[idx] || [];
       selStop.innerHTML = stops.map((s) => `<option value="${s.stop_id}">${s.stop_name}</option>`).join("");
