@@ -195,6 +195,76 @@ def stats_by_hour(
     )
 
 
+# ── Rankings ──────────────────────────────────────────────────
+
+@app.get("/api/rankings/stops")
+def rankings_stops():
+    """Top 10 best and worst stops (last 30 days, min 20 observations)."""
+    rows = get_conn().execute("""
+        SELECT
+            s.stop_name,
+            r.short_name,
+            r.color,
+            t.trip_headsign,
+            round(avg(o.delay_seconds), 1) as avg_delay_seconds,
+            round(count(CASE WHEN abs(o.delay_seconds) < 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
+            count(*) as total_passages
+        FROM delay_observations o
+        JOIN stops s ON o.stop_id = s.stop_id
+        JOIN trips t ON o.trip_id = t.trip_id
+        JOIN routes r ON o.route_id = r.route_id
+        WHERE o.observed_at >= current_date - INTERVAL '30 days'
+        GROUP BY s.stop_name, r.route_id, r.short_name, r.color, t.trip_headsign
+        HAVING count(*) >= 20
+    """).fetchall()
+
+    items = [
+        {
+            "stop_name": r[0], "short_name": r[1], "color": r[2],
+            "headsign": r[3], "avg_delay_seconds": r[4],
+            "on_time_percent": r[5], "total_passages": r[6],
+        }
+        for r in rows
+    ]
+
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:10]
+    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:10]
+    return {"worst": worst, "best": best}
+
+
+@app.get("/api/rankings/routes")
+def rankings_routes():
+    """Top 10 best and worst routes (last 30 days, min 50 observations)."""
+    rows = get_conn().execute("""
+        SELECT
+            r.route_id,
+            r.short_name,
+            r.long_name,
+            r.color,
+            round(avg(o.delay_seconds), 1) as avg_delay_seconds,
+            round(count(CASE WHEN abs(o.delay_seconds) < 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
+            count(*) as total_passages
+        FROM delay_observations o
+        JOIN routes r ON o.route_id = r.route_id
+        WHERE o.observed_at >= current_date - INTERVAL '30 days'
+        GROUP BY r.route_id, r.short_name, r.long_name, r.color
+        HAVING count(*) >= 50
+    """).fetchall()
+
+    items = [
+        {
+            "route_id": r[0], "short_name": r[1], "long_name": r[2],
+            "color": r[3], "avg_delay_seconds": r[4],
+            "on_time_percent": r[5], "total_passages": r[6],
+        }
+        for r in rows
+    ]
+
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:10]
+    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:10]
+    return {"worst": worst, "best": best}
+
+
 # ── Global overview ───────────────────────────────────────────────────
 
 @app.get("/api/overview")

@@ -283,6 +283,47 @@ select:focus, .btn:focus { outline: 2px solid var(--accent); outline-offset: -1p
   color: var(--red);
 }
 
+/* ── Rankings ─────────────────────────────────────────────────── */
+.ranking-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  margin-bottom: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+.ranking-item:hover { background: var(--bg-card-hover); }
+
+.ranking-info { flex: 1; min-width: 0; }
+.ranking-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ranking-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.ranking-delay {
+  text-align: right;
+  flex-shrink: 0;
+}
+.ranking-delay .delay-value {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.ranking-ontime {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 /* ── Empty state ──────────────────────────────────────────────── */
 .empty {
   text-align: center;

@@ -24,6 +24,7 @@ function route() {
 
   if (parts[0] === "" || parts[0] === undefined) return viewOverview();
   if (parts[0] === "route" && parts[1]) return viewRoute(decodeURIComponent(parts[1]));
+  if (parts[0] === "rankings") return viewRankings();
   if (parts[0] === "trips") return viewTrips();
   return viewOverview();
 }
@@ -329,6 +330,69 @@ async function viewRoute(routeId) {
     loadStats();
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-text">Erreur: ${err.message}</div></div>`;
+  }
+}
+
+// ── View: Rankings ───────────────────────────────────────────
+
+async function viewRankings() {
+  app().innerHTML = loading();
+
+  try {
+    const [stops, routes] = await Promise.all([
+      api("/rankings/stops"),
+      api("/rankings/routes"),
+    ]);
+
+    function renderStopList(items) {
+      if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
+      return items.map((s) => `
+        <div class="ranking-item">
+          ${routeBadge(s.short_name, s.color)}
+          <div class="ranking-info">
+            <div class="ranking-name">${s.stop_name}</div>
+            <div class="ranking-meta">Vers ${s.headsign} &middot; ${s.total_passages} passages</div>
+          </div>
+          <div class="ranking-delay">
+            <div class="delay-value" style="color:${delayColorCSS(s.avg_delay_seconds)}">${formatDelay(s.avg_delay_seconds, true)}</div>
+            <div class="ranking-ontime">${s.on_time_percent}% ponctuel</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderRouteList(items) {
+      if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
+      return items.map((r) => `
+        <a href="#/route/${encodeURIComponent(r.route_id)}" class="ranking-item">
+          ${routeBadge(r.short_name, r.color)}
+          <div class="ranking-info">
+            <div class="ranking-name">${r.long_name}</div>
+            <div class="ranking-meta">${r.total_passages} passages</div>
+          </div>
+          <div class="ranking-delay">
+            <div class="delay-value" style="color:${delayColorCSS(r.avg_delay_seconds)}">${formatDelay(r.avg_delay_seconds, true)}</div>
+            <div class="ranking-ontime">${r.on_time_percent}% ponctuel</div>
+          </div>
+        </a>
+      `).join("");
+    }
+
+    app().innerHTML = `
+      <h2 class="section-title">Pires arr&ecirc;ts</h2>
+      ${renderStopList(stops.worst)}
+
+      <h2 class="section-title">Meilleurs arr&ecirc;ts</h2>
+      ${renderStopList(stops.best)}
+
+      <h2 class="section-title">Pires lignes</h2>
+      ${renderRouteList(routes.worst)}
+
+      <h2 class="section-title">Meilleures lignes</h2>
+      ${renderRouteList(routes.best)}
+    `;
+  } catch (err) {
+    app().innerHTML = `<div class="empty"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-text">Erreur de chargement: ${err.message}</div></div>`;
   }
 }
 
