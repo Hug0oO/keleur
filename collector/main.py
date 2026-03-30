@@ -215,6 +215,7 @@ class Collector:
         # Safety flush
         if time.monotonic() - self._last_flush > config.SAFETY_FLUSH_SECONDS:
             self._flush_buffer(dict(self._buffer))
+            self._buffer.clear()
             self._last_flush = time.monotonic()
 
     def _flush_buffer(self, items: dict) -> None:

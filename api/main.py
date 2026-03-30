@@ -29,6 +29,9 @@ async def lifespan(app: FastAPI):
     from collector import database, config
     _conn = database.get_connection()
 
+    # Deduplicate any existing duplicate observations
+    database.deduplicate_observations(_conn)
+
     # Start collector in background thread
     from collector.main import Collector
     collector = Collector(conn=_conn)

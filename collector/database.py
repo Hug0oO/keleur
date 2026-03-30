@@ -159,6 +159,27 @@ def insert_observations(conn: duckdb.DuckDBPyConnection, observations: list[dict
     logger.debug("Inserted %d observations", len(observations))
 
 
+def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
+    """Remove duplicate observations, keeping the last one per (trip_id, stop_id, scheduled_dep)."""
+    before = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
+    conn.execute("""
+        CREATE TABLE delay_observations_dedup AS
+        SELECT * FROM (
+            SELECT *, row_number() OVER (
+                PARTITION BY trip_id, stop_id, scheduled_dep
+                ORDER BY feed_timestamp DESC
+            ) as rn
+            FROM delay_observations
+        ) WHERE rn = 1
+    """)
+    conn.execute("DROP TABLE delay_observations")
+    conn.execute("ALTER TABLE delay_observations_dedup RENAME TO delay_observations")
+    # Drop the rn column
+    conn.execute("ALTER TABLE delay_observations DROP COLUMN rn")
+    after = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
+    logger.info("Deduplicated observations: %d -> %d (removed %d)", before, after, before - after)
+
+
 def get_scheduled_times(
     conn: duckdb.DuckDBPyConnection, trip_id: str
 ) -> dict[int, str]:
