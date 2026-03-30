@@ -17,7 +17,8 @@ _conn: duckdb.DuckDBPyConnection | None = None
 
 
 def get_conn() -> duckdb.DuckDBPyConnection:
-    return _conn
+    """Return a thread-local cursor so API and collector don't conflict."""
+    return _conn.cursor()
 
 
 @asynccontextmanager
