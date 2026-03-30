@@ -46,7 +46,7 @@ function delayColor(seconds) {
 
 function formatDelay(seconds) {
   if (seconds === null || seconds === undefined) return "-";
-  const abs = Math.abs(seconds);
+  const abs = Math.abs(Math.round(seconds));
   const sign = seconds >= 0 ? "+" : "-";
   if (abs < 60) return `${sign}${abs}s`;
   const min = Math.floor(abs / 60);
