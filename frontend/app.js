@@ -44,14 +44,15 @@ function delayColor(seconds) {
   return "red";
 }
 
-function formatDelay(seconds) {
+function formatDelay(seconds, short = false) {
   if (seconds === null || seconds === undefined) return "-";
   const raw = Math.round(seconds);
   const abs = Math.abs(raw);
   if (abs < 60) return "\u00e0 l'heure";
   const min = Math.floor(abs / 60);
-  if (raw > 0) return `+${min} min`;
-  return `-${min} min`;
+  if (short) return raw > 0 ? `+${min} min` : `-${min} min`;
+  if (raw > 0) return `${min} min de retard`;
+  return `${min} min d'avance`;
 }
 
 function routeBadge(shortName, color) {
@@ -77,7 +78,7 @@ function barChart(rows, labelKey, valueKey, maxValue, colorFn) {
         <div class="bar-track">
           <div class="bar-fill" style="width:${pct}%;background:${color}"></div>
         </div>
-        <span class="bar-value" style="color:${color}">${formatDelay(val)}</span>
+        <span class="bar-value" style="color:${color}">${formatDelay(val, true)}</span>
       </div>`;
     })
     .join("")}</div>`;
@@ -129,7 +130,7 @@ async function viewOverview() {
         </div>
         <div class="stat-card">
           <div class="value ${overview.on_time_percent >= 70 ? "green" : overview.on_time_percent >= 50 ? "orange" : "red"}">${overview.on_time_percent?.toFixed(0) ?? "-"}%</div>
-          <div class="label">&Agrave; l'heure (&plusmn;1min)</div>
+          <div class="label">&Agrave; l'heure</div>
         </div>
       </div>
 
@@ -362,7 +363,7 @@ async function viewTrips() {
     ${trips
       .map((t, i) => {
         const s = allStats[i];
-        const delayStr = s && s.total_observations > 0 ? formatDelay(Math.round(s.avg_delay_seconds)) : "-";
+        const delayStr = s && s.total_observations > 0 ? formatDelay(Math.round(s.avg_delay_seconds), true) : "-";
         const onTime = s && s.total_observations > 0 ? `${s.on_time_percent.toFixed(0)}%` : "-";
         return `
           <div class="trip-card">
