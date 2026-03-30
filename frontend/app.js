@@ -39,19 +39,19 @@ function loading() {
 function delayColor(seconds) {
   if (seconds === null || seconds === undefined) return "blue";
   const abs = Math.abs(seconds);
-  if (abs <= 60) return "green";
-  if (abs <= 180) return "orange";
+  if (abs < 60) return "green";
+  if (abs < 180) return "orange";
   return "red";
 }
 
 function formatDelay(seconds) {
   if (seconds === null || seconds === undefined) return "-";
-  const abs = Math.abs(Math.round(seconds));
-  const sign = seconds >= 0 ? "+" : "-";
-  if (abs < 60) return `${sign}${abs}s`;
+  const raw = Math.round(seconds);
+  const abs = Math.abs(raw);
+  if (abs < 60) return "\u00e0 l'heure";
   const min = Math.floor(abs / 60);
-  const sec = abs % 60;
-  return sec > 0 ? `${sign}${min}m${sec.toString().padStart(2, "0")}` : `${sign}${min}m`;
+  if (raw > 0) return `+${min} min`;
+  return `-${min} min`;
 }
 
 function routeBadge(shortName, color) {
@@ -125,7 +125,7 @@ async function viewOverview() {
         </div>
         <div class="stat-card">
           <div class="value ${delayColor(overview.avg_delay_seconds)}">${formatDelay(Math.round(overview.avg_delay_seconds))}</div>
-          <div class="label">Retard moyen</div>
+          <div class="label">Ponctualit&eacute; moyenne</div>
         </div>
         <div class="stat-card">
           <div class="value ${overview.on_time_percent >= 70 ? "green" : overview.on_time_percent >= 50 ? "orange" : "red"}">${overview.on_time_percent?.toFixed(0) ?? "-"}%</div>
@@ -250,11 +250,11 @@ async function viewRoute(routeId) {
           <div class="card-grid">
             <div class="stat-card">
               <div class="value ${delayColor(stats.avg_delay_seconds)}">${formatDelay(Math.round(stats.avg_delay_seconds))}</div>
-              <div class="label">Retard moyen</div>
+              <div class="label">Ponctualit&eacute; moyenne</div>
             </div>
             <div class="stat-card">
               <div class="value ${delayColor(stats.median_delay_seconds)}">${formatDelay(Math.round(stats.median_delay_seconds))}</div>
-              <div class="label">Retard m&eacute;dian</div>
+              <div class="label">Ponctualit&eacute; m&eacute;diane</div>
             </div>
             <div class="stat-card">
               <div class="value ${stats.on_time_percent >= 70 ? "green" : stats.on_time_percent >= 50 ? "orange" : "red"}">${stats.on_time_percent.toFixed(0)}%</div>
