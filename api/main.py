@@ -155,14 +155,13 @@ def route_stops(
 def delay_stats(
     route_id: str,
     stop_id: str,
-    direction_id: int = Query(default=0),
     time_from: str = Query(default=None, description="HH:MM"),
     time_to: str = Query(default=None, description="HH:MM"),
     days: int = Query(default=30, description="Lookback in days"),
 ):
-    """Aggregated delay statistics for a specific route/stop/direction."""
+    """Aggregated delay statistics for a specific route/stop."""
     return queries.get_delay_stats(
-        get_conn(), route_id, stop_id, direction_id, time_from, time_to, days
+        get_conn(), route_id, stop_id, time_from, time_to, days
     )
 
 
@@ -172,14 +171,13 @@ def delay_stats(
 def stats_by_day(
     route_id: str,
     stop_id: str,
-    direction_id: int = Query(default=0),
     time_from: str = Query(default=None, description="HH:MM"),
     time_to: str = Query(default=None, description="HH:MM"),
     days: int = Query(default=30),
 ):
     """Delay statistics broken down by day of week."""
     return queries.get_stats_by_day_of_week(
-        get_conn(), route_id, stop_id, direction_id, time_from, time_to, days
+        get_conn(), route_id, stop_id, time_from, time_to, days
     )
 
 
@@ -189,12 +187,11 @@ def stats_by_day(
 def stats_by_hour(
     route_id: str,
     stop_id: str,
-    direction_id: int = Query(default=0),
     days: int = Query(default=30),
 ):
     """Delay statistics broken down by hour of day."""
     return queries.get_stats_by_hour(
-        get_conn(), route_id, stop_id, direction_id, days
+        get_conn(), route_id, stop_id, days
     )
 
 

@@ -25,13 +25,12 @@ def get_delay_stats(
     conn: duckdb.DuckDBPyConnection,
     route_id: str,
     stop_id: str,
-    direction_id: int,
     time_from: str | None,
     time_to: str | None,
     days: int,
 ) -> dict:
     time_clause, time_params = _time_filter(time_from, time_to)
-    params = [route_id, direction_id, stop_id, days] + time_params
+    params = [route_id, stop_id, days] + time_params
 
     row = conn.execute(f"""
         SELECT
@@ -47,7 +46,7 @@ def get_delay_stats(
             min(observed_at) as first_obs,
             max(observed_at) as last_obs
         FROM delay_observations
-        WHERE route_id = ? AND direction_id = ?
+        WHERE route_id = ?
           AND stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.stop_name = (SELECT s1.stop_name FROM stops s1 WHERE s1.stop_id = ?))
           AND observed_at >= current_date - INTERVAL (?) DAY
           {time_clause}
@@ -75,13 +74,12 @@ def get_stats_by_day_of_week(
     conn: duckdb.DuckDBPyConnection,
     route_id: str,
     stop_id: str,
-    direction_id: int,
     time_from: str | None,
     time_to: str | None,
     days: int,
 ) -> list[dict]:
     time_clause, time_params = _time_filter(time_from, time_to)
-    params = [route_id, direction_id, stop_id, days] + time_params
+    params = [route_id, stop_id, days] + time_params
 
     rows = conn.execute(f"""
         SELECT
@@ -92,7 +90,7 @@ def get_stats_by_day_of_week(
             count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct,
             count(CASE WHEN delay_seconds > 300 THEN 1 END) * 100.0 / count(*) as late_5min_pct
         FROM delay_observations
-        WHERE route_id = ? AND direction_id = ?
+        WHERE route_id = ?
           AND stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.stop_name = (SELECT s1.stop_name FROM stops s1 WHERE s1.stop_id = ?))
           AND observed_at >= current_date - INTERVAL (?) DAY
           {time_clause}
@@ -118,7 +116,6 @@ def get_stats_by_hour(
     conn: duckdb.DuckDBPyConnection,
     route_id: str,
     stop_id: str,
-    direction_id: int,
     days: int,
 ) -> list[dict]:
     rows = conn.execute("""
@@ -129,12 +126,12 @@ def get_stats_by_hour(
             round(median(delay_seconds), 1) as median_delay,
             count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct
         FROM delay_observations
-        WHERE route_id = ? AND direction_id = ?
+        WHERE route_id = ?
           AND stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.stop_name = (SELECT s1.stop_name FROM stops s1 WHERE s1.stop_id = ?))
           AND observed_at >= current_date - INTERVAL (?) DAY
         GROUP BY hour(scheduled_dep)
         ORDER BY hour(scheduled_dep)
-    """, [route_id, direction_id, stop_id, days]).fetchall()
+    """, [route_id, stop_id, days]).fetchall()
 
     return [
         {

@@ -235,11 +235,10 @@ async function viewRoute(routeId) {
       $("#route-stats").innerHTML = loading();
 
       try {
-        const dir = opt.dir;
         const [stats, byDay, byHour] = await Promise.all([
-          api(`/stats?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}&direction_id=${dir}`),
-          api(`/stats/by-day?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}&direction_id=${dir}`),
-          api(`/stats/by-hour?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}&direction_id=${dir}`),
+          api(`/stats?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`),
+          api(`/stats/by-day?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`),
+          api(`/stats/by-hour?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`),
         ]);
 
         if (stats.total_observations === 0) {
@@ -353,7 +352,7 @@ async function viewTrips() {
 
   // Load stats for all trips in parallel
   const statsPromises = trips.map((t) =>
-    api(`/stats?route_id=${encodeURIComponent(t.route_id)}&stop_id=${encodeURIComponent(t.stop_id)}&direction_id=${t.direction_id}&days=30`)
+    api(`/stats?route_id=${encodeURIComponent(t.route_id)}&stop_id=${encodeURIComponent(t.stop_id)}&days=30`)
       .catch(() => null)
   );
   const allStats = await Promise.all(statsPromises);
