@@ -148,6 +148,14 @@ async function viewOverview() {
             `).join("")}
           </ul>
         `).join("")}
+
+      <div class="about-card">
+        <h3 class="about-title">D'o&ugrave; viennent ces donn&eacute;es ?</h3>
+        <p>Keleur mesure la ponctualit&eacute; r&eacute;elle des bus et tramways Il&eacute;via &agrave; Lille.</p>
+        <p>Toutes les 30 secondes, nous comparons la <strong>position en temps r&eacute;el</strong> de chaque v&eacute;hicule (fournie par Il&eacute;via via les donn&eacute;es officielles GTFS-RT) avec l'<strong>heure de passage pr&eacute;vue</strong> dans les horaires th&eacute;oriques.</p>
+        <p>La diff&eacute;rence entre les deux donne le retard (ou l'avance) &agrave; chaque arr&ecirc;t. Ces mesures sont enregistr&eacute;es en continu, 24h/24, ce qui permet de calculer des statistiques fiables sur plusieurs jours ou semaines.</p>
+        <p class="about-muted">Les donn&eacute;es sont publiques et proviennent de <strong>transport.data.gouv.fr</strong>, le portail officiel des donn&eacute;es de transport en France. Keleur ne fait que les collecter, les comparer et les agr&eacute;ger pour vous.</p>
+      </div>
     `;
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-text">Erreur de chargement: ${err.message}</div></div>`;
