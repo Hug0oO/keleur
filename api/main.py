@@ -61,6 +61,7 @@ app.add_middleware(
 def _parse_filters(
     route_id: str,
     stop_id: str | None = None,
+    headsign: str | None = None,
     days: int = 30,
     time_from: str | None = None,
     time_to: str | None = None,
@@ -71,6 +72,7 @@ def _parse_filters(
     return FilterParams(
         route_id=route_id,
         stop_id=stop_id,
+        headsign=headsign,
         days=days,
         time_from=time_from,
         time_to=time_to,
@@ -183,79 +185,72 @@ def route_stops(
 def delay_stats(
     route_id: str,
     stop_id: str = Query(default=None),
+    headsign: str = Query(default=None),
     time_from: str = Query(default=None, description="HH:MM"),
     time_to: str = Query(default=None, description="HH:MM"),
-    days: int = Query(default=30, description="Lookback in days"),
-    days_of_week: str = Query(default=None, description="Comma-separated day numbers (0=Sun..6=Sat)"),
-    holidays: str = Query(default="all", description="all, only, or exclude"),
+    days: int = Query(default=30),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
 ):
-    """Aggregated delay statistics for a specific route/stop."""
-    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    f = _parse_filters(route_id, stop_id=stop_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_delay_stats(get_conn(), f)
 
-
-# ── Stats by day of week ──────────────────────────────────────────────
 
 @app.get("/api/stats/by-day")
 def stats_by_day(
     route_id: str,
     stop_id: str = Query(default=None),
-    time_from: str = Query(default=None, description="HH:MM"),
-    time_to: str = Query(default=None, description="HH:MM"),
+    headsign: str = Query(default=None),
+    time_from: str = Query(default=None),
+    time_to: str = Query(default=None),
     days: int = Query(default=30),
-    days_of_week: str = Query(default=None, description="Comma-separated day numbers (0=Sun..6=Sat)"),
-    holidays: str = Query(default="all", description="all, only, or exclude"),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
 ):
-    """Delay statistics broken down by day of week."""
-    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    f = _parse_filters(route_id, stop_id=stop_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_stats_by_day_of_week(get_conn(), f)
 
-
-# ── Stats by hour ─────────────────────────────────────────────────────
 
 @app.get("/api/stats/by-hour")
 def stats_by_hour(
     route_id: str,
     stop_id: str = Query(default=None),
-    time_from: str = Query(default=None, description="HH:MM"),
-    time_to: str = Query(default=None, description="HH:MM"),
+    headsign: str = Query(default=None),
+    time_from: str = Query(default=None),
+    time_to: str = Query(default=None),
     days: int = Query(default=30),
-    days_of_week: str = Query(default=None, description="Comma-separated day numbers (0=Sun..6=Sat)"),
-    holidays: str = Query(default="all", description="all, only, or exclude"),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
 ):
-    """Delay statistics broken down by hour of day."""
-    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    f = _parse_filters(route_id, stop_id=stop_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_stats_by_hour(get_conn(), f)
 
-
-# ── Worst departures ─────────────────────────────────────────────────
 
 @app.get("/api/stats/worst-departures")
 def worst_departures(
     route_id: str,
     stop_id: str = Query(default=None),
+    headsign: str = Query(default=None),
     days: int = Query(default=30),
     time_from: str = Query(default=None),
     time_to: str = Query(default=None),
     days_of_week: str = Query(default=None),
     holidays: str = Query(default="all"),
 ):
-    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    f = _parse_filters(route_id, stop_id=stop_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_worst_departures(get_conn(), f)
 
-
-# ── Departure times ──────────────────────────────────────────────────
 
 @app.get("/api/stats/departures")
 def departure_times(
     route_id: str,
     stop_id: str = Query(default=None),
+    headsign: str = Query(default=None),
     days: int = Query(default=30),
     days_of_week: str = Query(default=None),
     holidays: str = Query(default="all"),
 ):
-    """All observed departure times with per-time punctuality stats."""
-    f = _parse_filters(route_id, stop_id, days, days_of_week=days_of_week, holidays=holidays)
+    f = _parse_filters(route_id, stop_id=stop_id, headsign=headsign, days=days, days_of_week=days_of_week, holidays=holidays)
     return queries.get_departure_times(get_conn(), f)
 
 

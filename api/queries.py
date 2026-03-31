@@ -22,6 +22,7 @@ _DAY_NAMES = {
 class FilterParams:
     route_id: str
     stop_id: str | None = None
+    headsign: str | None = None
     days: int = 30
     time_from: str | None = None
     time_to: str | None = None
@@ -49,6 +50,12 @@ def _build_filters(
             "WHERE s2.stop_name = (SELECT s1.stop_name FROM stops s1 WHERE s1.stop_id = ?))"
         )
         params.append(f.stop_id)
+
+    if f.headsign:
+        clauses.append(
+            "trip_id IN (SELECT t.trip_id FROM trips t WHERE t.trip_headsign = ?)"
+        )
+        params.append(f.headsign)
 
     clauses.append("observed_at >= current_date - INTERVAL (?) DAY")
     params.append(f.days)

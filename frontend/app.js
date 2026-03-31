@@ -473,11 +473,14 @@ async function viewRoute(routeId) {
       if (!stopId) return;
       if (!filters) filters = getFilterValues("stop-filters");
       const fqs = buildFilterQS(filters);
+      const idx = parseInt(selDir.value);
+      const currentHeadsign = dirOptions[idx]?.headsign;
 
       $("#route-stats").innerHTML = loading();
 
       try {
-        const base = `route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`;
+        let base = `route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`;
+        if (currentHeadsign) base += `&headsign=${encodeURIComponent(currentHeadsign)}`;
         const [stats, byDay, byHour, worst] = await Promise.all([
           api(`/stats?${base}${fqs}`),
           api(`/stats/by-day?${base}${fqs}`),
