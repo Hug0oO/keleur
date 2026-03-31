@@ -330,6 +330,45 @@ async function viewOverview() {
   }
 }
 
+// ── Departure time list ──────────────────────────────────────
+
+function renderDepartureList(departures, query) {
+  const container = document.getElementById("dep-time-results");
+  if (!container) return;
+
+  let filtered = departures;
+  if (query) {
+    // Filter: show exact match first, then times starting with query, then containing
+    const q = query.replace(":", "");
+    filtered = departures.filter((d) => d.departure_time.replace(":", "").includes(q));
+  }
+
+  // Show max 20 initially, all if searching
+  const shown = query ? filtered : filtered.slice(0, 20);
+  const hasMore = !query && filtered.length > 20;
+
+  if (!shown.length) {
+    container.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:0.5rem;font-size:0.85rem">${query ? "Aucun horaire trouv\u00e9" : "Aucun horaire disponible"}</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="dep-time-list">
+      ${shown.map((d) => `
+        <div class="dep-time-item">
+          <span class="dep-time-hour">${d.departure_time}</span>
+          <div class="dep-time-stats">
+            <span class="dep-time-ontime" style="color:${d.on_time_percent >= 70 ? "var(--green)" : d.on_time_percent >= 50 ? "var(--orange)" : "var(--red)"}">${d.on_time_percent.toFixed(0)}%</span>
+            <span class="dep-time-delay" style="color:${delayColorCSS(d.avg_delay_seconds)}">${formatDelayExact(d.avg_delay_seconds)}</span>
+          </div>
+          <span class="dep-time-count">${d.total_observations} passages</span>
+        </div>
+      `).join("")}
+    </div>
+    ${hasMore ? `<div style="text-align:center;padding:0.5rem;font-size:0.8rem;color:var(--text-muted)">Utilisez le champ ci-dessus pour trouver votre horaire</div>` : ""}
+  `;
+}
+
 // ── View: Route detail ────────────────────────────────────────
 
 async function viewRoute(routeId) {
@@ -468,7 +507,26 @@ async function viewRoute(routeId) {
           <div class="card">
             ${renderWorstDepartures(worst)}
           </div>
+
+          <h2 class="section-title">Ponctualit&eacute; par horaire</h2>
+          <div class="card">
+            <div style="margin-bottom:0.75rem">
+              <input type="time" id="dep-time-search" placeholder="HH:MM"
+                style="width:100%;padding:0.6rem 0.85rem;background:var(--bg);color:var(--text);border:1px solid #2a2a40;border-radius:8px;font-size:0.95rem">
+            </div>
+            <div id="dep-time-results">${loading()}</div>
+          </div>
         `;
+
+        // Load departure times
+        const depData = await api(\`/stats/departures?\${base}\${fqs}\`);
+        renderDepartureList(depData, null);
+
+        $("#dep-time-search").addEventListener("input", () => {
+          const q = $("#dep-time-search").value;
+          renderDepartureList(depData, q);
+        });
+
       } catch (err) {
         $("#route-stats").innerHTML = `<div class="empty">Erreur: ${err.message}</div>`;
       }

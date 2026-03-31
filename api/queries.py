@@ -306,3 +306,42 @@ def get_worst_departures(
         }
         for r in rows
     ]
+
+
+# ── Departure times list ───────────────────────────────────────────
+
+
+def get_departure_times(
+    conn: duckdb.DuckDBPyConnection, f: FilterParams
+) -> list[dict]:
+    """List all observed departure times with per-time stats."""
+    where, params = _build_filters(f)
+
+    rows = conn.execute(f"""
+        SELECT
+            strftime(scheduled_dep, '%H:%M') as departure_time,
+            count(*) as total,
+            round(avg(delay_seconds), 1) as avg_delay,
+            round(median(delay_seconds), 1) as median_delay,
+            min(delay_seconds) as min_delay,
+            max(delay_seconds) as max_delay,
+            count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct
+        FROM delay_observations
+        {where}
+        GROUP BY strftime(scheduled_dep, '%H:%M')
+        HAVING count(*) >= 2
+        ORDER BY strftime(scheduled_dep, '%H:%M')
+    """, params).fetchall()
+
+    return [
+        {
+            "departure_time": r[0],
+            "total_observations": r[1],
+            "avg_delay_seconds": r[2],
+            "median_delay_seconds": r[3],
+            "min_delay_seconds": r[4],
+            "max_delay_seconds": r[5],
+            "on_time_percent": round(r[6], 1),
+        }
+        for r in rows
+    ]

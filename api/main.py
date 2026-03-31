@@ -244,6 +244,21 @@ def worst_departures(
     return queries.get_worst_departures(get_conn(), f)
 
 
+# ── Departure times ──────────────────────────────────────────────────
+
+@app.get("/api/stats/departures")
+def departure_times(
+    route_id: str,
+    stop_id: str = Query(default=None),
+    days: int = Query(default=30),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    """All observed departure times with per-time punctuality stats."""
+    f = _parse_filters(route_id, stop_id, days, days_of_week=days_of_week, holidays=holidays)
+    return queries.get_departure_times(get_conn(), f)
+
+
 # ── Route-level stats (all stops) ─────────────────────────────────────
 
 @app.get("/api/routes/{route_id}/stats")

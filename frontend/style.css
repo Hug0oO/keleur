@@ -573,6 +573,53 @@ select:focus, .btn:focus { outline: 2px solid var(--accent); outline-offset: -1p
   flex-shrink: 0;
 }
 
+/* ── Departure time list ─────────────────────────────────────── */
+.dep-time-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.dep-time-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: #1e1e35;
+  border-radius: 8px;
+}
+
+.dep-time-hour {
+  font-weight: 700;
+  font-size: 1.05rem;
+  min-width: 3.5rem;
+  color: var(--text);
+}
+
+.dep-time-stats {
+  flex: 1;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.dep-time-ontime {
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 2.5rem;
+}
+
+.dep-time-delay {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.dep-time-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 /* ── Search ──────────────────────────────────────────────────── */
 .search-stop-group {
   margin-bottom: 0.75rem;
