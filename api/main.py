@@ -355,6 +355,39 @@ def rankings_routes():
     return {"worst": worst, "best": best}
 
 
+# ── Stop search ──────────────────────────────────────────────────────
+
+@app.get("/api/search/stops")
+def search_stops(q: str = Query(description="Search query")):
+    """Search stops by name, returning matching stops with their routes."""
+    if len(q) < 2:
+        return []
+    rows = get_conn().execute("""
+        SELECT DISTINCT
+            s.stop_name,
+            r.route_id,
+            r.short_name,
+            r.long_name,
+            r.color,
+            t.trip_headsign
+        FROM delay_observations o
+        JOIN stops s ON o.stop_id = s.stop_id
+        JOIN routes r ON o.route_id = r.route_id
+        JOIN trips t ON o.trip_id = t.trip_id
+        WHERE lower(s.stop_name) LIKE '%' || lower(?) || '%'
+        GROUP BY s.stop_name, r.route_id, r.short_name, r.long_name, r.color, t.trip_headsign
+        ORDER BY s.stop_name, r.short_name
+        LIMIT 50
+    """, [q]).fetchall()
+    return [
+        {
+            "stop_name": r[0], "route_id": r[1], "short_name": r[2],
+            "long_name": r[3], "color": r[4], "headsign": r[5],
+        }
+        for r in rows
+    ]
+
+
 # ── Global overview ───────────────────────────────────────────────────
 
 @app.get("/api/overview")

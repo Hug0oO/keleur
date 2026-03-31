@@ -23,6 +23,7 @@ function route() {
   });
 
   if (parts[0] === "" || parts[0] === undefined) return viewOverview();
+  if (parts[0] === "search") return viewSearch();
   if (parts[0] === "route-stats" && parts[1]) return viewRouteStats(decodeURIComponent(parts[1]));
   if (parts[0] === "route" && parts[1]) return viewRoute(decodeURIComponent(parts[1]));
   if (parts[0] === "rankings") return viewRankings();
@@ -31,6 +32,17 @@ function route() {
 }
 
 window.addEventListener("hashchange", route);
+
+// ── Hash query params helper ─────────────────────────────────
+
+function hashParams() {
+  const hash = location.hash || "";
+  const qIdx = hash.indexOf("?");
+  if (qIdx === -1) return {};
+  const params = {};
+  new URLSearchParams(hash.slice(qIdx + 1)).forEach((v, k) => { params[k] = v; });
+  return params;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -325,13 +337,25 @@ async function viewRoute(routeId) {
       ? directions.map((d) => ({ dir: d.direction_id, headsign: d.headsign, key: `${d.direction_id}:${d.headsign}` }))
       : [{ dir: 0, headsign: null, key: "0:" }, { dir: 1, headsign: null, key: "1:" }];
 
-    // Load initial stops
-    const firstOpt = dirOptions[0];
-    const hsParam = firstOpt.headsign ? `headsign=${encodeURIComponent(firstOpt.headsign)}` : "";
+    // Check for preselection from hash params (e.g. from rankings)
+    const hp = hashParams();
+    const preHeadsign = hp.headsign || null;
+    const preStopName = hp.stop || null;
+
+    // Find the right initial direction index
+    let initialDirIdx = 0;
+    if (preHeadsign) {
+      const idx = dirOptions.findIndex((d) => d.headsign === preHeadsign);
+      if (idx >= 0) initialDirIdx = idx;
+    }
+
+    // Load initial stops for the selected direction
+    const initOpt = dirOptions[initialDirIdx];
+    const hsParam = initOpt.headsign ? `headsign=${encodeURIComponent(initOpt.headsign)}` : "";
     const initialStops = await api(`/routes/${encodeURIComponent(routeId)}/stops?${hsParam}`);
 
     app().innerHTML = `
-      <a href="#/" class="back-link">&larr; Retour</a>
+      <a href="javascript:void(0)" onclick="history.back()" class="back-link">&larr; Retour</a>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem">
         ${routeBadge(routeInfo.short_name || routeId, routeInfo.color)}
         <div>
@@ -342,10 +366,10 @@ async function viewRoute(routeId) {
 
       <div class="select-group">
         <select id="sel-dir">
-          ${dirOptions.map((d, i) => `<option value="${i}">${d.headsign ? "Vers " + d.headsign : "Direction " + (d.dir === 0 ? "A" : "B")}</option>`).join("")}
+          ${dirOptions.map((d, i) => `<option value="${i}" ${i === initialDirIdx ? "selected" : ""}>${d.headsign ? "Vers " + d.headsign : "Direction " + (d.dir === 0 ? "A" : "B")}</option>`).join("")}
         </select>
         <select id="sel-stop">
-          ${initialStops.map((s) => `<option value="${s.stop_id}">${s.stop_name}</option>`).join("")}
+          ${initialStops.map((s) => `<option value="${s.stop_id}" ${preStopName && s.stop_name === preStopName ? "selected" : ""}>${s.stop_name}</option>`).join("")}
         </select>
         <button class="btn btn-outline btn-sm" id="btn-save-trip">Sauvegarder</button>
       </div>
@@ -359,7 +383,8 @@ async function viewRoute(routeId) {
     const selStop = $("#sel-stop");
 
     // Cache loaded stops per direction
-    const stopsCache = { 0: initialStops };
+    const stopsCache = {};
+    stopsCache[initialDirIdx] = initialStops;
 
     async function updateStopOptions() {
       const idx = parseInt(selDir.value);
@@ -483,7 +508,7 @@ async function viewRouteStats(routeId) {
     const routeInfo = routes.find((r) => r.route_id === routeId) || {};
 
     app().innerHTML = `
-      <a href="#/" class="back-link">&larr; Retour</a>
+      <a href="javascript:void(0)" onclick="history.back()" class="back-link">&larr; Retour</a>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem">
         ${routeBadge(routeInfo.short_name || routeId, routeInfo.color)}
         <div>
@@ -565,6 +590,63 @@ async function viewRouteStats(routeId) {
   }
 }
 
+// ── View: Search ────────────────────────────────────────────
+
+async function viewSearch() {
+  app().innerHTML = `
+    <h2 class="section-title">Rechercher un arr&ecirc;t</h2>
+    <div style="margin-bottom:1rem">
+      <input type="text" id="search-input" placeholder="Nom de l'arr&ecirc;t..." autofocus
+        style="width:100%;padding:0.7rem 1rem;background:var(--bg-card);color:var(--text);border:1px solid #2a2a40;border-radius:8px;font-size:1rem">
+    </div>
+    <div id="search-results"></div>
+  `;
+
+  const input = $("#search-input");
+  let debounce = null;
+
+  input.addEventListener("input", () => {
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (q.length < 2) {
+      $("#search-results").innerHTML = `<div class="empty"><div class="empty-text">Tapez au moins 2 caract&egrave;res</div></div>`;
+      return;
+    }
+    debounce = setTimeout(async () => {
+      try {
+        const results = await api(`/search/stops?q=${encodeURIComponent(q)}`);
+        if (!results.length) {
+          $("#search-results").innerHTML = `<div class="empty"><div class="empty-text">Aucun r&eacute;sultat pour &laquo; ${q} &raquo;</div></div>`;
+          return;
+        }
+        // Group by stop_name
+        const grouped = {};
+        results.forEach((r) => {
+          if (!grouped[r.stop_name]) grouped[r.stop_name] = [];
+          grouped[r.stop_name].push(r);
+        });
+
+        $("#search-results").innerHTML = Object.entries(grouped).map(([stopName, items]) => `
+          <div class="search-stop-group">
+            <div class="search-stop-name">${stopName}</div>
+            ${items.map((item) => `
+              <a href="#/route/${encodeURIComponent(item.route_id)}?stop=${encodeURIComponent(item.stop_name)}&headsign=${encodeURIComponent(item.headsign)}" class="search-result-item">
+                ${routeBadge(item.short_name, item.color)}
+                <div class="search-result-info">
+                  <span class="search-result-line">${item.long_name}</span>
+                  <span class="search-result-dir">Vers ${item.headsign}</span>
+                </div>
+              </a>
+            `).join("")}
+          </div>
+        `).join("");
+      } catch (err) {
+        $("#search-results").innerHTML = `<div class="empty">Erreur: ${err.message}</div>`;
+      }
+    }, 300);
+  });
+}
+
 // ── View: Rankings ───────────────────────────────────────────
 
 async function viewRankings() {
@@ -579,7 +661,7 @@ async function viewRankings() {
     function renderStopList(items) {
       if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
       return items.map((s, i) => `
-        <a href="#/route/${encodeURIComponent(s.route_id)}" class="ranking-item">
+        <a href="#/route/${encodeURIComponent(s.route_id)}?stop=${encodeURIComponent(s.stop_name)}&headsign=${encodeURIComponent(s.headsign)}" class="ranking-item">
           <span class="ranking-rank">#${i + 1}</span>
           ${routeBadge(s.short_name, s.color)}
           <div class="ranking-info">
