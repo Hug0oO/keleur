@@ -519,7 +519,7 @@ async function viewRoute(routeId) {
         `;
 
         // Load departure times
-        const depData = await api(\`/stats/departures?\${base}\${fqs}\`);
+        const depData = await api(`/stats/departures?${base}${fqs}`);
         renderDepartureList(depData, null);
 
         $("#dep-time-search").addEventListener("input", () => {
