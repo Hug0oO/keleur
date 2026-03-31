@@ -14,7 +14,7 @@ async function api(path) {
 // ── Router ────────────────────────────────────────────────────
 
 function route() {
-  const hash = location.hash || "#/";
+  const hash = (location.hash || "#/").split("?")[0];
   const parts = hash.slice(2).split("/");
 
   // Highlight active nav
