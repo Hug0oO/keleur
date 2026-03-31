@@ -234,13 +234,24 @@ function buildFilterQS(filters, prefix = "&") {
 
 // ── Worst departures render ─────────────────────────────────
 
+function formatDelayExact(seconds) {
+  if (seconds === null || seconds === undefined) return "-";
+  const raw = Math.round(seconds);
+  const abs = Math.abs(raw);
+  const min = Math.floor(abs / 60);
+  const sec = abs % 60;
+  const sign = raw > 0 ? "+" : "-";
+  if (min === 0) return `${sign}${sec}s`;
+  return sec > 0 ? `${sign}${min}m${sec.toString().padStart(2, "0")}s` : `${sign}${min} min`;
+}
+
 function renderWorstDepartures(departures) {
-  if (!departures || !departures.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
+  if (!departures || !departures.length) return `<div class="empty"><div class="empty-text">Aucun d&eacute;part r&eacute;guli&egrave;rement en retard</div></div>`;
   return `<div class="worst-dep-list">${departures.map((d) => `
     <div class="worst-dep-item">
       <span class="worst-dep-time">${d.departure_time}</span>
       <span class="worst-dep-info">${d.total} passages</span>
-      <span class="worst-dep-delay" style="color:${delayColorCSS(d.avg_delay_seconds)}">${formatDelay(d.avg_delay_seconds, true)}</span>
+      <span class="worst-dep-delay" style="color:${delayColorCSS(d.avg_delay_seconds)}">${formatDelayExact(d.avg_delay_seconds)}</span>
     </div>
   `).join("")}</div>`;
 }

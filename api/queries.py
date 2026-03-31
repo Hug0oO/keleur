@@ -293,7 +293,7 @@ def get_worst_departures(
         FROM delay_observations
         {where}
         GROUP BY strftime(scheduled_dep, '%H:%M')
-        HAVING count(*) >= 3
+        HAVING count(*) >= 3 AND avg(delay_seconds) > 60
         ORDER BY avg(delay_seconds) DESC
         LIMIT ?
     """, params + [limit]).fetchall()
