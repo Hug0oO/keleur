@@ -91,6 +91,148 @@ function delayColorCSS(seconds) {
   return c === "green" ? "var(--green)" : c === "orange" ? "var(--orange)" : c === "red" ? "var(--red)" : "var(--blue)";
 }
 
+// ── Filter panel ─────────────────────────────────────────────
+
+const _DAYS = [
+  { val: 1, label: "Lun" },
+  { val: 2, label: "Mar" },
+  { val: 3, label: "Mer" },
+  { val: 4, label: "Jeu" },
+  { val: 5, label: "Ven" },
+  { val: 6, label: "Sam" },
+  { val: 0, label: "Dim" },
+];
+
+function renderFilterPanel(id) {
+  return `
+    <div class="filter-panel" id="${id}">
+      <button class="filter-toggle" type="button">Filtres</button>
+      <div class="filter-body">
+        <div class="filter-section">
+          <div class="filter-section-label">Jours de la semaine</div>
+          <div class="pill-group" data-filter="days">
+            ${_DAYS.map((d) => `<button class="pill active" data-val="${d.val}">${d.label}</button>`).join("")}
+          </div>
+        </div>
+        <div class="filter-section">
+          <div class="filter-section-label">Plage horaire</div>
+          <div class="filter-row">
+            <label>De</label>
+            <input type="time" data-filter="time-from" value="">
+            <label>à</label>
+            <input type="time" data-filter="time-to" value="">
+          </div>
+        </div>
+        <div class="filter-section">
+          <div class="filter-section-label">P&eacute;riode</div>
+          <div class="filter-row">
+            <select data-filter="days-back">
+              <option value="7">7 derniers jours</option>
+              <option value="14">14 derniers jours</option>
+              <option value="30" selected>30 derniers jours</option>
+              <option value="60">60 derniers jours</option>
+              <option value="90">90 derniers jours</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-section">
+          <div class="filter-section-label">Vacances scolaires (Zone B)</div>
+          <div class="pill-group" data-filter="holidays">
+            <button class="pill active" data-val="all">Toutes p&eacute;riodes</button>
+            <button class="pill" data-val="exclude">Hors vacances</button>
+            <button class="pill" data-val="only">Vacances uniquement</button>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn" data-action="apply">Appliquer</button>
+          <button class="btn btn-outline" data-action="reset">R&eacute;initialiser</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initFilterPanel(id, onApply) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+
+  // Toggle open/close
+  panel.querySelector(".filter-toggle").addEventListener("click", () => {
+    panel.classList.toggle("open");
+  });
+
+  // Day pills: toggle individual days
+  panel.querySelectorAll('[data-filter="days"] .pill').forEach((pill) => {
+    pill.addEventListener("click", () => pill.classList.toggle("active"));
+  });
+
+  // Holiday pills: single select
+  panel.querySelectorAll('[data-filter="holidays"] .pill').forEach((pill) => {
+    pill.addEventListener("click", () => {
+      panel.querySelectorAll('[data-filter="holidays"] .pill').forEach((p) => p.classList.remove("active"));
+      pill.classList.add("active");
+    });
+  });
+
+  // Apply
+  panel.querySelector('[data-action="apply"]').addEventListener("click", () => {
+    onApply(getFilterValues(id));
+  });
+
+  // Reset
+  panel.querySelector('[data-action="reset"]').addEventListener("click", () => {
+    panel.querySelectorAll('[data-filter="days"] .pill').forEach((p) => p.classList.add("active"));
+    panel.querySelectorAll('[data-filter="holidays"] .pill').forEach((p) => p.classList.remove("active"));
+    panel.querySelector('[data-filter="holidays"] .pill[data-val="all"]').classList.add("active");
+    panel.querySelector('[data-filter="time-from"]').value = "";
+    panel.querySelector('[data-filter="time-to"]').value = "";
+    panel.querySelector('[data-filter="days-back"]').value = "30";
+    onApply(getFilterValues(id));
+  });
+}
+
+function getFilterValues(id) {
+  const panel = document.getElementById(id);
+  const activeDays = [...panel.querySelectorAll('[data-filter="days"] .pill.active')].map((p) => p.dataset.val);
+  const allDaysSelected = activeDays.length === 7;
+  const timeFrom = panel.querySelector('[data-filter="time-from"]').value || null;
+  const timeTo = panel.querySelector('[data-filter="time-to"]').value || null;
+  const daysBack = panel.querySelector('[data-filter="days-back"]').value;
+  const holidays = panel.querySelector('[data-filter="holidays"] .pill.active')?.dataset.val || "all";
+
+  return {
+    days_of_week: allDaysSelected ? null : activeDays.join(","),
+    time_from: timeFrom ? timeFrom.slice(0, 5) : null,
+    time_to: timeTo ? timeTo.slice(0, 5) : null,
+    days: daysBack,
+    holidays,
+  };
+}
+
+function buildFilterQS(filters, prefix = "&") {
+  const parts = [];
+  if (filters.days_of_week) parts.push(`days_of_week=${filters.days_of_week}`);
+  if (filters.time_from) parts.push(`time_from=${filters.time_from}`);
+  if (filters.time_to) parts.push(`time_to=${filters.time_to}`);
+  if (filters.days) parts.push(`days=${filters.days}`);
+  if (filters.holidays && filters.holidays !== "all") parts.push(`holidays=${filters.holidays}`);
+  if (!parts.length) return "";
+  return prefix + parts.join("&");
+}
+
+// ── Worst departures render ─────────────────────────────────
+
+function renderWorstDepartures(departures) {
+  if (!departures || !departures.length) return `<div class="empty"><div class="empty-text">Pas assez de donn&eacute;es</div></div>`;
+  return `<div class="worst-dep-list">${departures.map((d) => `
+    <div class="worst-dep-item">
+      <span class="worst-dep-time">${d.departure_time}</span>
+      <span class="worst-dep-info">${d.total} passages</span>
+      <span class="worst-dep-delay" style="color:${delayColorCSS(d.avg_delay_seconds)}">${formatDelay(d.avg_delay_seconds, true)}</span>
+    </div>
+  `).join("")}</div>`;
+}
+
 // ── Trips (localStorage) ─────────────────────────────────────
 
 function getTrips() {
@@ -208,6 +350,8 @@ async function viewRoute(routeId) {
         <button class="btn btn-outline btn-sm" id="btn-save-trip">Sauvegarder</button>
       </div>
 
+      ${renderFilterPanel("stop-filters")}
+
       <div id="route-stats">${loading()}</div>
     `;
 
@@ -229,23 +373,25 @@ async function viewRoute(routeId) {
       if (!stops.length) selStop.innerHTML = `<option>Aucun arr&ecirc;t</option>`;
     }
 
-    async function loadStats() {
-      const idx = parseInt(selDir.value);
-      const opt = dirOptions[idx];
+    async function loadStats(filters) {
       const stopId = selStop.value;
       if (!stopId) return;
+      if (!filters) filters = getFilterValues("stop-filters");
+      const fqs = buildFilterQS(filters);
 
       $("#route-stats").innerHTML = loading();
 
       try {
-        const [stats, byDay, byHour] = await Promise.all([
-          api(`/stats?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`),
-          api(`/stats/by-day?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`),
-          api(`/stats/by-hour?route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`),
+        const base = `route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`;
+        const [stats, byDay, byHour, worst] = await Promise.all([
+          api(`/stats?${base}${fqs}`),
+          api(`/stats/by-day?${base}${fqs}`),
+          api(`/stats/by-hour?${base}${fqs}`),
+          api(`/stats/worst-departures?${base}${fqs}`),
         ]);
 
         if (stats.total_observations === 0) {
-          $("#route-stats").innerHTML = `<div class="empty"><div class="empty-text">Pas encore de donn&eacute;es pour cet arr&ecirc;t</div></div>`;
+          $("#route-stats").innerHTML = `<div class="empty"><div class="empty-text">Pas de donn&eacute;es pour ces filtres</div></div>`;
           return;
         }
 
@@ -274,24 +420,17 @@ async function viewRoute(routeId) {
 
           <h2 class="section-title">Par jour de la semaine</h2>
           <div class="card">
-            ${barChart(
-              byDay,
-              "day_name",
-              "avg_delay_seconds",
-              null,
-              (v) => delayColorCSS(v)
-            )}
+            ${barChart(byDay, "day_name", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
           </div>
 
           <h2 class="section-title">Par heure</h2>
           <div class="card">
-            ${barChart(
-              byHour.map((h) => ({ ...h, label: `${h.hour}h` })),
-              "label",
-              "avg_delay_seconds",
-              null,
-              (v) => delayColorCSS(v)
-            )}
+            ${barChart(byHour.map((h) => ({ ...h, label: h.hour + "h" })), "label", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
+          </div>
+
+          <h2 class="section-title">Pires d&eacute;parts</h2>
+          <div class="card">
+            ${renderWorstDepartures(worst)}
           </div>
         `;
       } catch (err) {
@@ -300,7 +439,8 @@ async function viewRoute(routeId) {
     }
 
     selDir.addEventListener("change", async () => { await updateStopOptions(); loadStats(); });
-    selStop.addEventListener("change", loadStats);
+    selStop.addEventListener("change", () => loadStats());
+    initFilterPanel("stop-filters", loadStats);
 
     // Save trip button
     $("#btn-save-trip").addEventListener("click", () => {
@@ -316,7 +456,6 @@ async function viewRoute(routeId) {
         stop_name: selStop.options[selStop.selectedIndex]?.text,
         direction_id: opt.dir,
       };
-      // Avoid duplicates
       const exists = trips.some(
         (t) => t.route_id === trip.route_id && t.stop_id === trip.stop_id && t.direction_id === trip.direction_id
       );
@@ -340,22 +479,8 @@ async function viewRouteStats(routeId) {
   app().innerHTML = loading();
 
   try {
-    const [routes, stats, byDay, byHour] = await Promise.all([
-      api("/routes"),
-      api(`/routes/${encodeURIComponent(routeId)}/stats`),
-      api(`/routes/${encodeURIComponent(routeId)}/stats/by-day`),
-      api(`/routes/${encodeURIComponent(routeId)}/stats/by-hour`),
-    ]);
-
+    const routes = await api("/routes");
     const routeInfo = routes.find((r) => r.route_id === routeId) || {};
-
-    if (stats.total_observations === 0) {
-      app().innerHTML = `
-        <a href="#/" class="back-link">&larr; Retour</a>
-        <div class="empty"><div class="empty-text">Pas encore de donn&eacute;es pour cette ligne</div></div>
-      `;
-      return;
-    }
 
     app().innerHTML = `
       <a href="#/" class="back-link">&larr; Retour</a>
@@ -367,42 +492,74 @@ async function viewRouteStats(routeId) {
         </div>
       </div>
 
-      <div class="card-grid">
-        <div class="stat-card">
-          <div class="value ${stats.on_time_percent >= 70 ? "green" : stats.on_time_percent >= 50 ? "orange" : "red"}">${stats.on_time_percent.toFixed(0)}%</div>
-          <div class="label">&Agrave; l'heure</div>
-        </div>
-        <div class="stat-card">
-          <div class="value red">${stats.avg_late_delay_seconds ? formatDelay(Math.round(stats.avg_late_delay_seconds), true) : "-"}</div>
-          <div class="label">Retard moyen</div>
-        </div>
-        <div class="stat-card">
-          <div class="value blue">${stats.total_observations.toLocaleString("fr")}</div>
-          <div class="label">Passages mesur&eacute;s</div>
-        </div>
-        <div class="stat-card">
-          <div class="value ${stats.late_5min_percent <= 10 ? "green" : stats.late_5min_percent <= 25 ? "orange" : "red"}">${stats.late_5min_percent.toFixed(0)}%</div>
-          <div class="label">&gt; 5 min de retard</div>
-        </div>
-      </div>
-      <div style="margin-bottom:1rem;text-align:center">
-        <div style="font-size:0.8rem;color:var(--text-muted)">Depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
-      </div>
+      ${renderFilterPanel("route-filters")}
 
-      <h2 class="section-title">Par jour de la semaine</h2>
-      <div class="card">
-        ${barChart(byDay, "day_name", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
-      </div>
-
-      <h2 class="section-title">Par heure</h2>
-      <div class="card">
-        ${barChart(byHour.map((h) => ({ ...h, label: h.hour + "h" })), "label", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
-      </div>
+      <div id="route-stats-content">${loading()}</div>
 
       <div style="margin-top:1.5rem;text-align:center">
         <a href="#/route/${encodeURIComponent(routeId)}" class="btn btn-outline">D&eacute;tail par arr&ecirc;t</a>
       </div>
     `;
+
+    async function loadRouteStats(filters) {
+      if (!filters) filters = getFilterValues("route-filters");
+      const rid = encodeURIComponent(routeId);
+
+      $("#route-stats-content").innerHTML = loading();
+
+      try {
+        const qs = buildFilterQS(filters, "?");
+        const [stats, byDay, byHour] = await Promise.all([
+          api(`/routes/${rid}/stats${qs}`),
+          api(`/routes/${rid}/stats/by-day${qs}`),
+          api(`/routes/${rid}/stats/by-hour${qs}`),
+        ]);
+
+        if (stats.total_observations === 0) {
+          $("#route-stats-content").innerHTML = `<div class="empty"><div class="empty-text">Pas de donn&eacute;es pour ces filtres</div></div>`;
+          return;
+        }
+
+        $("#route-stats-content").innerHTML = `
+          <div class="card-grid">
+            <div class="stat-card">
+              <div class="value ${stats.on_time_percent >= 70 ? "green" : stats.on_time_percent >= 50 ? "orange" : "red"}">${stats.on_time_percent.toFixed(0)}%</div>
+              <div class="label">&Agrave; l'heure</div>
+            </div>
+            <div class="stat-card">
+              <div class="value red">${stats.avg_late_delay_seconds ? formatDelay(Math.round(stats.avg_late_delay_seconds), true) : "-"}</div>
+              <div class="label">Retard moyen</div>
+            </div>
+            <div class="stat-card">
+              <div class="value blue">${stats.total_observations.toLocaleString("fr")}</div>
+              <div class="label">Passages mesur&eacute;s</div>
+            </div>
+            <div class="stat-card">
+              <div class="value ${stats.late_5min_percent <= 10 ? "green" : stats.late_5min_percent <= 25 ? "orange" : "red"}">${stats.late_5min_percent.toFixed(0)}%</div>
+              <div class="label">&gt; 5 min de retard</div>
+            </div>
+          </div>
+          <div style="margin-bottom:1rem;text-align:center">
+            <div style="font-size:0.8rem;color:var(--text-muted)">Depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>
+          </div>
+
+          <h2 class="section-title">Par jour de la semaine</h2>
+          <div class="card">
+            ${barChart(byDay, "day_name", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
+          </div>
+
+          <h2 class="section-title">Par heure</h2>
+          <div class="card">
+            ${barChart(byHour.map((h) => ({ ...h, label: h.hour + "h" })), "label", "avg_delay_seconds", null, (v) => delayColorCSS(v))}
+          </div>
+        `;
+      } catch (err) {
+        $("#route-stats-content").innerHTML = `<div class="empty">Erreur: ${err.message}</div>`;
+      }
+    }
+
+    initFilterPanel("route-filters", loadRouteStats);
+    loadRouteStats();
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-text">Erreur: ${err.message}</div></div>`;
   }

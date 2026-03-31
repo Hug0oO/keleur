@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from collector.config import DB_PATH
 from . import queries
+from .queries import FilterParams
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -52,6 +53,30 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+# ── Filter helper ─────────────────────────────────────────────────────
+
+
+def _parse_filters(
+    route_id: str,
+    stop_id: str | None = None,
+    days: int = 30,
+    time_from: str | None = None,
+    time_to: str | None = None,
+    days_of_week: str | None = None,  # comma-separated "1,2,3,4,5"
+    holidays: str = "all",
+) -> FilterParams:
+    dow = [int(x) for x in days_of_week.split(",")] if days_of_week else None
+    return FilterParams(
+        route_id=route_id,
+        stop_id=stop_id,
+        days=days,
+        time_from=time_from,
+        time_to=time_to,
+        days_of_week=dow,
+        holidays=holidays,
+    )
 
 
 # ── Routes list ────────────────────────────────────────────────────────
@@ -152,20 +177,21 @@ def route_stops(
     ]
 
 
-# ── Stats for a (route, stop, direction) ──────────────────────────────
+# ── Stats for a (route, stop) ───────────────────────────────────────
 
 @app.get("/api/stats")
 def delay_stats(
     route_id: str,
-    stop_id: str,
+    stop_id: str = Query(default=None),
     time_from: str = Query(default=None, description="HH:MM"),
     time_to: str = Query(default=None, description="HH:MM"),
     days: int = Query(default=30, description="Lookback in days"),
+    days_of_week: str = Query(default=None, description="Comma-separated day numbers (0=Sun..6=Sat)"),
+    holidays: str = Query(default="all", description="all, only, or exclude"),
 ):
     """Aggregated delay statistics for a specific route/stop."""
-    return queries.get_delay_stats(
-        get_conn(), route_id, stop_id, time_from, time_to, days
-    )
+    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    return queries.get_delay_stats(get_conn(), f)
 
 
 # ── Stats by day of week ──────────────────────────────────────────────
@@ -173,15 +199,16 @@ def delay_stats(
 @app.get("/api/stats/by-day")
 def stats_by_day(
     route_id: str,
-    stop_id: str,
+    stop_id: str = Query(default=None),
     time_from: str = Query(default=None, description="HH:MM"),
     time_to: str = Query(default=None, description="HH:MM"),
     days: int = Query(default=30),
+    days_of_week: str = Query(default=None, description="Comma-separated day numbers (0=Sun..6=Sat)"),
+    holidays: str = Query(default="all", description="all, only, or exclude"),
 ):
     """Delay statistics broken down by day of week."""
-    return queries.get_stats_by_day_of_week(
-        get_conn(), route_id, stop_id, time_from, time_to, days
-    )
+    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    return queries.get_stats_by_day_of_week(get_conn(), f)
 
 
 # ── Stats by hour ─────────────────────────────────────────────────────
@@ -189,28 +216,71 @@ def stats_by_day(
 @app.get("/api/stats/by-hour")
 def stats_by_hour(
     route_id: str,
-    stop_id: str,
+    stop_id: str = Query(default=None),
+    time_from: str = Query(default=None, description="HH:MM"),
+    time_to: str = Query(default=None, description="HH:MM"),
     days: int = Query(default=30),
+    days_of_week: str = Query(default=None, description="Comma-separated day numbers (0=Sun..6=Sat)"),
+    holidays: str = Query(default="all", description="all, only, or exclude"),
 ):
     """Delay statistics broken down by hour of day."""
-    return queries.get_stats_by_hour(
-        get_conn(), route_id, stop_id, days
-    )
+    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    return queries.get_stats_by_hour(get_conn(), f)
+
+
+# ── Worst departures ─────────────────────────────────────────────────
+
+@app.get("/api/stats/worst-departures")
+def worst_departures(
+    route_id: str,
+    stop_id: str = Query(default=None),
+    days: int = Query(default=30),
+    time_from: str = Query(default=None),
+    time_to: str = Query(default=None),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    f = _parse_filters(route_id, stop_id, days, time_from, time_to, days_of_week, holidays)
+    return queries.get_worst_departures(get_conn(), f)
 
 
 # ── Route-level stats (all stops) ─────────────────────────────────────
 
 @app.get("/api/routes/{route_id}/stats")
-def route_global_stats(route_id: str, days: int = Query(default=30)):
-    return queries.get_route_stats(get_conn(), route_id, days)
+def route_global_stats(
+    route_id: str,
+    days: int = Query(default=30),
+    time_from: str = Query(default=None),
+    time_to: str = Query(default=None),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    f = _parse_filters(route_id, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
+    return queries.get_route_stats(get_conn(), f)
 
 @app.get("/api/routes/{route_id}/stats/by-day")
-def route_stats_by_day(route_id: str, days: int = Query(default=30)):
-    return queries.get_route_stats_by_day(get_conn(), route_id, days)
+def route_stats_by_day(
+    route_id: str,
+    days: int = Query(default=30),
+    time_from: str = Query(default=None),
+    time_to: str = Query(default=None),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    f = _parse_filters(route_id, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
+    return queries.get_route_stats_by_day(get_conn(), f)
 
 @app.get("/api/routes/{route_id}/stats/by-hour")
-def route_stats_by_hour(route_id: str, days: int = Query(default=30)):
-    return queries.get_route_stats_by_hour(get_conn(), route_id, days)
+def route_stats_by_hour(
+    route_id: str,
+    days: int = Query(default=30),
+    time_from: str = Query(default=None),
+    time_to: str = Query(default=None),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    f = _parse_filters(route_id, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
+    return queries.get_route_stats_by_hour(get_conn(), f)
 
 
 # ── Rankings ──────────────────────────────────────────────────
