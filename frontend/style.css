@@ -703,37 +703,234 @@ select { flex: 1; min-width: 0; }
 }
 .back-link:hover { color: var(--primary); }
 
-/* ── About card ──────────────────────────────────────────────── */
-.about-card {
+/* ── About link card (homepage) ──────────────────────────────── */
+.about-link-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
   background: var(--bg-card);
   border-radius: var(--radius);
-  padding: 1.25rem;
-  margin-top: 2rem;
-  border-left: 3px solid var(--primary);
+  padding: 1rem 1.15rem;
+  margin-top: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--shadow);
+  transition: all 0.15s;
+}
+.about-link-card:hover { box-shadow: var(--shadow-md); background: var(--bg-card-hover); }
+
+.about-link-icon { font-size: 1.5rem; flex-shrink: 0; }
+.about-link-text { flex: 1; min-width: 0; }
+.about-link-title { font-weight: 700; font-size: 0.9rem; }
+.about-link-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.1rem; }
+.about-link-arrow { font-size: 1.5rem; color: var(--text-muted); flex-shrink: 0; font-weight: 300; }
+
+/* ── About page ─────────────────────────────────────────────── */
+.about-hero {
+  margin-bottom: 1.75rem;
+}
+
+.about-hero h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+}
+
+.about-hero-sub {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+/* Stats row */
+.about-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.about-stat {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 0.5rem;
+  text-align: center;
   box-shadow: var(--shadow);
 }
 
-.about-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  margin-bottom: 0.6rem;
+.about-stat-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.3px;
 }
 
-.about-card p {
-  font-size: 0.82rem;
+.about-stat-label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+/* Steps */
+.about-section {
+  margin-bottom: 2rem;
+}
+
+.about-section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.about-step {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.about-step-num {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.about-step-content { flex: 1; min-width: 0; }
+
+.about-step-content h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  line-height: 1.35;
+}
+
+.about-step-content p {
+  font-size: 0.85rem;
   color: var(--text-secondary);
+  line-height: 1.65;
   margin-bottom: 0.5rem;
+}
+
+.about-step-content p strong { color: var(--text); }
+
+/* Formula highlight */
+.about-formula {
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 0.6rem 0;
+  color: var(--primary);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+/* Technical details */
+.about-details {
+  margin-top: 0.5rem;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.about-details summary {
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+  list-style: none;
+}
+
+.about-details summary::before {
+  content: "\25B6\FE0E ";
+  font-size: 0.6rem;
+  margin-right: 0.3rem;
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.about-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.about-details summary:hover { color: var(--primary); }
+
+.about-details p {
+  padding: 0 0.85rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
-.about-card p strong { color: var(--text); }
-
-.about-card .about-muted {
-  margin-top: 0.6rem;
-  margin-bottom: 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
+.about-details code {
+  background: var(--bg-card);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--primary);
 }
+
+/* Card blocks */
+.about-card-block {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 1.15rem;
+  box-shadow: var(--shadow);
+}
+
+.about-card-block p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-bottom: 0.5rem;
+}
+
+.about-card-block p:last-child { margin-bottom: 0; }
+.about-card-block p strong { color: var(--text); }
+
+.about-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.about-list li {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding-left: 1.1rem;
+  position: relative;
+}
+
+.about-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55rem;
+  width: 5px;
+  height: 5px;
+  background: var(--text-muted);
+  border-radius: 50%;
+}
+
+.about-list li strong { color: var(--text); }
 
 /* ── Data footnote ───────────────────────────────────────────── */
 .data-footnote {
@@ -845,9 +1042,16 @@ select { flex: 1; min-width: 0; }
   .worst-dep-item { gap: 0.4rem; padding: 0.45rem 0.6rem; }
   .worst-dep-time { font-size: 0.88rem; min-width: 3rem; }
 
-  /* About card */
-  .about-card { padding: 1rem; }
-  .about-card p { font-size: 0.78rem; }
+  /* About page */
+  .about-hero h1 { font-size: 1.25rem; }
+  .about-stats { grid-template-columns: repeat(2, 1fr); }
+  .about-step { gap: 0.75rem; }
+  .about-step-num { width: 2rem; height: 2rem; font-size: 0.85rem; }
+  .about-step-content h2 { font-size: 0.92rem; }
+  .about-step-content p { font-size: 0.82rem; }
+  .about-card-block { padding: 0.85rem; }
+  .about-card-block p { font-size: 0.82rem; }
+  .about-list li { font-size: 0.82rem; }
 
   /* Section titles */
   .section-title { font-size: 0.72rem; margin: 1.25rem 0 0.5rem; }
@@ -876,4 +1080,8 @@ select { flex: 1; min-width: 0; }
   .bottom-nav a .nav-icon { font-size: 1.1rem; }
 
   .route-badge { min-width: 2.5rem; height: 1.75rem; font-size: 0.75rem; padding: 0 0.35rem; }
+
+  .about-hero h1 { font-size: 1.1rem; }
+  .about-stat-value { font-size: 1rem; }
+  .about-stat-label { font-size: 0.58rem; }
 }

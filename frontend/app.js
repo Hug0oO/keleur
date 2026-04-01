@@ -34,6 +34,7 @@ function route() {
   if (parts[0] === "route" && parts[1]) return viewRoute(decodeURIComponent(parts[1]));
   if (parts[0] === "rankings") return viewRankings();
   if (parts[0] === "trips") return viewTrips();
+  if (parts[0] === "about") return viewAbout();
   return viewOverview();
 }
 
@@ -386,13 +387,14 @@ async function viewOverview() {
           </ul>
         `).join("")}
 
-      <div class="about-card">
-        <h3 class="about-title">D\u2019o\u00f9 viennent ces donn\u00e9es ?</h3>
-        <p>Keleur mesure la ponctualit\u00e9 r\u00e9elle des bus et tramways Il\u00e9via \u00e0 Lille.</p>
-        <p>Toutes les 30 secondes, nous comparons la <strong>position en temps r\u00e9el</strong> de chaque v\u00e9hicule (fournie par Il\u00e9via via les donn\u00e9es GTFS-RT) avec l\u2019<strong>heure de passage pr\u00e9vue</strong> dans les horaires officiels.</p>
-        <p>La diff\u00e9rence donne le retard ou l\u2019avance \u00e0 chaque arr\u00eat. Ces mesures, enregistr\u00e9es 24h/24, permettent de calculer des statistiques fiables.</p>
-        <p class="about-muted">Donn\u00e9es publiques issues de <strong>transport.data.gouv.fr</strong>. Keleur les collecte, les compare et les agr\u00e8ge.</p>
-      </div>
+      <a href="#/about" class="about-link-card">
+        <span class="about-link-icon">&#x1F4D6;</span>
+        <div class="about-link-text">
+          <div class="about-link-title">Comment \u00e7a marche ?</div>
+          <div class="about-link-sub">D\u00e9couvrez d\u2019o\u00f9 viennent nos donn\u00e9es et comment elles sont calcul\u00e9es</div>
+        </div>
+        <span class="about-link-arrow">\u203A</span>
+      </a>
     `;
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-text">Erreur de chargement : ${err.message}</div></div>`;
@@ -832,6 +834,130 @@ window.removeTrip = function (idx) {
   saveTrips(trips);
   viewTrips();
 };
+
+// ── View: About ─────────────────────────────────────────
+
+async function viewAbout() {
+  let statsHtml = "";
+  try {
+    const ov = await api("/overview");
+    statsHtml = `
+      <div class="about-stats">
+        <div class="about-stat">
+          <div class="about-stat-value">${ov.total_observations.toLocaleString("fr")}</div>
+          <div class="about-stat-label">mesures enregistr\u00e9es</div>
+        </div>
+        <div class="about-stat">
+          <div class="about-stat-value">${ov.routes_count}</div>
+          <div class="about-stat-label">lignes suivies</div>
+        </div>
+        <div class="about-stat">
+          <div class="about-stat-value">${ov.stops_count}</div>
+          <div class="about-stat-label">arr\u00eats couverts</div>
+        </div>
+        <div class="about-stat">
+          <div class="about-stat-value">30s</div>
+          <div class="about-stat-label">fr\u00e9quence de mesure</div>
+        </div>
+      </div>
+    `;
+  } catch {}
+
+  app().innerHTML = `
+    <a href="javascript:void(0)" onclick="history.back()" class="back-link">\u2190 Retour</a>
+
+    <div class="about-hero">
+      <h1>Comment fonctionne Keleur\u202f?</h1>
+      <p class="about-hero-sub">Transparence totale sur nos donn\u00e9es et notre m\u00e9thode de calcul.</p>
+    </div>
+
+    ${statsHtml}
+
+    <div class="about-section">
+      <div class="about-step">
+        <div class="about-step-num">1</div>
+        <div class="about-step-content">
+          <h2>On r\u00e9cup\u00e8re les horaires officiels</h2>
+          <p>Il\u00e9via publie les horaires th\u00e9oriques de toutes ses lignes (bus, tram, m\u00e9tro) dans un format standardis\u00e9 appel\u00e9 <strong>GTFS</strong>. Ce fichier contient chaque arr\u00eat, chaque ligne, et chaque heure de passage pr\u00e9vue.</p>
+          <p>Keleur t\u00e9l\u00e9charge ces horaires automatiquement chaque jour.</p>
+          <details class="about-details">
+            <summary>D\u00e9tails techniques</summary>
+            <p>Le fichier GTFS statique est publi\u00e9 par Il\u00e9via sur <strong>transport.data.gouv.fr</strong> (licence ouverte). Il contient les tables <code>routes</code>, <code>stops</code>, <code>trips</code> et <code>stop_times</code>. Keleur v\u00e9rifie le hash SHA-256 pour ne r\u00e9importer que si le fichier a chang\u00e9.</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="about-step">
+        <div class="about-step-num">2</div>
+        <div class="about-step-content">
+          <h2>On capte la position en temps r\u00e9el</h2>
+          <p>En parall\u00e8le, Il\u00e9via diffuse en continu l\u2019\u00e9tat de chaque v\u00e9hicule en circulation\u202f: est-il en avance\u202f? En retard\u202f? De combien\u202f?</p>
+          <p>Keleur interroge ce flux <strong>toutes les 30 secondes</strong>, 24 heures sur 24, 7 jours sur 7.</p>
+          <details class="about-details">
+            <summary>D\u00e9tails techniques</summary>
+            <p>Le flux temps r\u00e9el est au format <strong>GTFS-RT</strong> (Protocol Buffers). Keleur consomme les entit\u00e9s <code>TripUpdate</code> qui fournissent, pour chaque trip en cours, l\u2019heure de d\u00e9part estim\u00e9e \u00e0 chaque arr\u00eat (<code>StopTimeUpdate.departure</code>). Le flux est proxifi\u00e9 par transport.data.gouv.fr.</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="about-step">
+        <div class="about-step-num">3</div>
+        <div class="about-step-content">
+          <h2>On calcule le retard</h2>
+          <p>Pour chaque passage \u00e0 chaque arr\u00eat, Keleur fait un calcul simple\u202f:</p>
+          <div class="about-formula">
+            <strong>Retard</strong> = heure r\u00e9elle \u2212 heure pr\u00e9vue
+          </div>
+          <p>Un r\u00e9sultat positif = le bus est en retard. N\u00e9gatif = il est en avance. Si le retard est inf\u00e9rieur \u00e0 1 minute (en valeur absolue), on consid\u00e8re que le bus est <strong>\u00e0 l\u2019heure</strong>.</p>
+          <details class="about-details">
+            <summary>D\u00e9tails techniques</summary>
+            <p>Le calcul est : <code>delay = realtime_dep \u2212 scheduled_dep</code> (en secondes). Les observations avec un d\u00e9calage sup\u00e9rieur \u00e0 1 heure sont \u00e9cart\u00e9es (probable d\u00e9calage de date). La d\u00e9duplication est faite sur le tuple <code>(trip_id, stop_id, scheduled_dep)</code> pour \u00e9viter les doublons li\u00e9s au polling fr\u00e9quent.</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="about-step">
+        <div class="about-step-num">4</div>
+        <div class="about-step-content">
+          <h2>On agr\u00e8ge les statistiques</h2>
+          <p>Toutes ces mesures individuelles sont stock\u00e9es et agr\u00e9g\u00e9es pour produire des statistiques fiables\u202f: taux de ponctualit\u00e9, retard moyen, pires horaires, comparaisons par jour ou par heure.</p>
+          <p>Plus on accumule de mesures, plus les r\u00e9sultats sont repr\u00e9sentatifs.</p>
+          <details class="about-details">
+            <summary>D\u00e9tails techniques</summary>
+            <p>Les donn\u00e9es sont stock\u00e9es dans <strong>DuckDB</strong>, une base de donn\u00e9es analytique colonnaire optimis\u00e9e pour les agr\u00e9gations. Les requ\u00eates utilisent <code>avg()</code>, <code>median()</code>, <code>stddev()</code> et des percentiles. Les filtres disponibles\u202f: p\u00e9riode, jours de la semaine, plage horaire, vacances scolaires (zone B).</p>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <div class="about-section">
+      <h2 class="about-section-title">Ce que \u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb veut dire</h2>
+      <div class="about-card-block">
+        <p>Un bus ou tram est consid\u00e9r\u00e9 <strong>\u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb</strong> si son \u00e9cart avec l\u2019horaire pr\u00e9vu est <strong>inf\u00e9rieur \u00e0 1 minute</strong> (en avance ou en retard).</p>
+        <p>C\u2019est un seuil strict. Beaucoup d\u2019op\u00e9rateurs consid\u00e8rent un bus \u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb jusqu\u2019\u00e0 5 minutes de retard. Keleur fait le choix d\u2019un crit\u00e8re exigeant, plus proche du ressenti des usagers.</p>
+      </div>
+    </div>
+
+    <div class="about-section">
+      <h2 class="about-section-title">Sources et transparence</h2>
+      <div class="about-card-block">
+        <p>Toutes les donn\u00e9es utilis\u00e9es sont <strong>publiques et ouvertes</strong>, publi\u00e9es par Il\u00e9via / la M\u00e9tropole Europ\u00e9enne de Lille sur <strong>transport.data.gouv.fr</strong> sous licence ouverte.</p>
+        <p>Keleur n\u2019est pas affili\u00e9 \u00e0 Il\u00e9via ni \u00e0 Keolis. C\u2019est un projet ind\u00e9pendant qui collecte, compare et agr\u00e8ge ces donn\u00e9es publiques pour les rendre lisibles.</p>
+      </div>
+    </div>
+
+    <div class="about-section">
+      <h2 class="about-section-title">Limites</h2>
+      <div class="about-card-block">
+        <ul class="about-list">
+          <li><strong>D\u00e9pendance au flux Il\u00e9via</strong> \u2014 si le flux temps r\u00e9el est interrompu ou erron\u00e9, les mesures sont impact\u00e9es.</li>
+          <li><strong>Pas de donn\u00e9es avant le lancement</strong> \u2014 les statistiques d\u00e9marrent \u00e0 la date de mise en service de Keleur.</li>
+          <li><strong>M\u00e9tro non couvert</strong> \u2014 le m\u00e9tro automatique de Lille n\u2019est g\u00e9n\u00e9ralement pas inclus dans le flux GTFS-RT.</li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
 
 // ── Service worker ───────────────────────────────────────────
 
