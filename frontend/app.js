@@ -58,7 +58,7 @@ function delayColor(seconds) {
 }
 
 function formatDelay(seconds, short = false) {
-  if (seconds === null || seconds === undefined) return "-";
+  if (seconds === null || seconds === undefined) return "\u00e0 l\u2019heure";
   const raw = Math.round(seconds);
   const abs = Math.abs(raw);
   if (abs < 60) return "\u00e0 l\u2019heure";
