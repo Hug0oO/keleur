@@ -297,15 +297,15 @@ def route_stats_by_hour(
 
 @app.get("/api/rankings/stops")
 def rankings_stops():
-    """Top 10 best and worst stops (last 30 days, min 20 observations)."""
+    """Top 3 best and worst stops (last 30 days, min 20 observations)."""
     rows = get_conn().execute("""
         SELECT
             s.stop_name,
             r.short_name,
             r.color,
             t.trip_headsign,
-            round(avg(o.delay_seconds), 1) as avg_delay_seconds,
-            round(count(CASE WHEN abs(o.delay_seconds) < 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
+            round(avg(CASE WHEN o.delay_seconds >= 60 THEN o.delay_seconds END), 0) as avg_late_delay,
+            round(count(CASE WHEN abs(o.delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
             count(*) as total_passages,
             r.route_id
         FROM delay_observations o
@@ -327,22 +327,22 @@ def rankings_stops():
         for r in rows
     ]
 
-    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:3]
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"] or 0, reverse=True)[:3]
     best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:3]
     return {"worst": worst, "best": best}
 
 
 @app.get("/api/rankings/routes")
 def rankings_routes():
-    """Top 10 best and worst routes (last 30 days, min 50 observations)."""
+    """Top 3 best and worst routes (last 30 days, min 50 observations)."""
     rows = get_conn().execute("""
         SELECT
             r.route_id,
             r.short_name,
             r.long_name,
             r.color,
-            round(avg(o.delay_seconds), 1) as avg_delay_seconds,
-            round(count(CASE WHEN abs(o.delay_seconds) < 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
+            round(avg(CASE WHEN o.delay_seconds >= 60 THEN o.delay_seconds END), 0) as avg_late_delay,
+            round(count(CASE WHEN abs(o.delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
             count(*) as total_passages
         FROM delay_observations o
         JOIN routes r ON o.route_id = r.route_id
@@ -360,7 +360,7 @@ def rankings_routes():
         for r in rows
     ]
 
-    worst = sorted(items, key=lambda x: x["avg_delay_seconds"], reverse=True)[:3]
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"] or 0, reverse=True)[:3]
     best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:3]
     return {"worst": worst, "best": best}
 
