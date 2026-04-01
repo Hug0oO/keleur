@@ -22,11 +22,13 @@ function route() {
   });
 
   // Bottom nav active state
-  const navMap = { "": "home", "search": "search", "rankings": "rankings", "trips": "trips" };
+  const navMap = { "": "home", "search": "search", "rankings": "rankings", "trips": "trips", "about": "about" };
   const activeNav = navMap[parts[0]] || "";
   document.querySelectorAll("#bottom-nav a").forEach((a) => {
     a.classList.toggle("active", a.dataset.nav === activeNav);
   });
+
+  window.scrollTo(0, 0);
 
   if (parts[0] === "" || parts[0] === undefined) return viewOverview();
   if (parts[0] === "search") return viewSearch();
