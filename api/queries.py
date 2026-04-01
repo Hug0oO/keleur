@@ -206,7 +206,7 @@ def get_route_stats(conn: duckdb.DuckDBPyConnection, f: FilterParams) -> dict:
         SELECT
             count(*) as total,
             round(avg(delay_seconds), 1) as avg_delay,
-            count(CASE WHEN abs(delay_seconds) < 60 THEN 1 END) * 100.0 / count(*) as on_time_pct,
+            count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct,
             count(CASE WHEN delay_seconds > 300 THEN 1 END) * 100.0 / count(*) as late_5min_pct,
             round(avg(CASE WHEN delay_seconds >= 60 THEN delay_seconds END), 0) as avg_late_delay,
             min(observed_at) as first_obs,

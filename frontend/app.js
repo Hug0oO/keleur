@@ -297,8 +297,8 @@ function renderStatCards(stats) {
         <div class="label">\u00c0 l\u2019heure</div>
       </div>
       <div class="stat-card">
-        <div class="value" style="color:${delayColorCSS(stats.avg_delay_seconds)}">${formatDelay(Math.round(stats.avg_delay_seconds), true)}</div>
-        <div class="label">Retard moyen</div>
+        <div class="value" style="color:${stats.avg_late_delay_seconds ? "var(--red)" : "var(--green)"}">${stats.avg_late_delay_seconds ? formatDelay(Math.round(stats.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
+        <div class="label">Quand en retard</div>
       </div>
       <div class="stat-card">
         <div class="value blue">${(stats.total_observations || 0).toLocaleString("fr")}</div>
