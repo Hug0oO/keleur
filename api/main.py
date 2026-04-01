@@ -307,7 +307,8 @@ def rankings_stops():
             round(avg(o.delay_seconds), 1) as avg_delay_seconds,
             round(count(CASE WHEN abs(o.delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
             count(*) as total_passages,
-            r.route_id
+            r.route_id,
+            round(avg(CASE WHEN o.delay_seconds >= 60 THEN o.delay_seconds END), 0) as avg_late_delay
         FROM delay_observations o
         JOIN stops s ON o.stop_id = s.stop_id
         JOIN trips t ON o.trip_id = t.trip_id
@@ -322,7 +323,7 @@ def rankings_stops():
             "stop_name": r[0], "short_name": r[1], "color": r[2],
             "headsign": r[3], "avg_delay_seconds": r[4],
             "on_time_percent": r[5], "total_passages": r[6],
-            "route_id": r[7],
+            "route_id": r[7], "avg_late_delay_seconds": r[8],
         }
         for r in rows
     ]
@@ -343,7 +344,8 @@ def rankings_routes():
             r.color,
             round(avg(o.delay_seconds), 1) as avg_delay_seconds,
             round(count(CASE WHEN abs(o.delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_percent,
-            count(*) as total_passages
+            count(*) as total_passages,
+            round(avg(CASE WHEN o.delay_seconds >= 60 THEN o.delay_seconds END), 0) as avg_late_delay
         FROM delay_observations o
         JOIN routes r ON o.route_id = r.route_id
         WHERE o.observed_at >= current_date - INTERVAL '30 days'
@@ -356,6 +358,7 @@ def rankings_routes():
             "route_id": r[0], "short_name": r[1], "long_name": r[2],
             "color": r[3], "avg_delay_seconds": r[4],
             "on_time_percent": r[5], "total_passages": r[6],
+            "avg_late_delay_seconds": r[7],
         }
         for r in rows
     ]

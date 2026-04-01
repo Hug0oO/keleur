@@ -724,7 +724,7 @@ async function viewRankings() {
             <div class="ranking-meta">Vers ${s.headsign} \u00b7 ${s.total_passages} passages</div>
           </div>
           <div class="ranking-delay">
-            <div class="delay-value" style="color:${delayColorCSS(s.avg_delay_seconds)}">${formatDelay(s.avg_delay_seconds, true)}</div>
+            <div class="delay-value" style="color:${s.avg_late_delay_seconds ? "var(--red)" : "var(--green)"}">${s.avg_late_delay_seconds ? formatDelay(Math.round(s.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
             <div class="ranking-ontime">${s.on_time_percent}% \u00e0 l\u2019heure</div>
           </div>
         </a>
@@ -742,7 +742,7 @@ async function viewRankings() {
             <div class="ranking-meta">${r.total_passages} passages</div>
           </div>
           <div class="ranking-delay">
-            <div class="delay-value" style="color:${delayColorCSS(r.avg_delay_seconds)}">${formatDelay(r.avg_delay_seconds, true)}</div>
+            <div class="delay-value" style="color:${r.avg_late_delay_seconds ? "var(--red)" : "var(--green)"}">${r.avg_late_delay_seconds ? formatDelay(Math.round(r.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
             <div class="ranking-ontime">${r.on_time_percent}% \u00e0 l\u2019heure</div>
           </div>
         </a>
