@@ -910,7 +910,14 @@ async function viewAbout() {
           <div class="about-formula">
             <strong>Retard</strong> = heure r\u00e9elle \u2212 heure pr\u00e9vue
           </div>
-          <p>Un r\u00e9sultat positif = le bus est en retard. N\u00e9gatif = il est en avance. Si le retard est inf\u00e9rieur \u00e0 1 minute (en valeur absolue), on consid\u00e8re que le bus est <strong>\u00e0 l\u2019heure</strong>.</p>
+          <div class="about-example">
+            <div class="about-example-title">Exemple concret</div>
+            <p>Le bus L1 est pr\u00e9vu \u00e0 l\u2019arr\u00eat R\u00e9publique \u00e0 <strong>08h15</strong>.<br>
+            Il\u00e9via signale qu\u2019il passera en r\u00e9alit\u00e9 \u00e0 <strong>08h19</strong>.</p>
+            <p>Keleur enregistre\u202f: <strong>08h19 \u2212 08h15 = +4 minutes de retard</strong>.</p>
+            <p>Si le m\u00eame bus \u00e9tait pass\u00e9 \u00e0 08h14, Keleur aurait enregistr\u00e9 <strong>\u22121 minute</strong> (1 minute d\u2019avance).</p>
+          </div>
+          <p>Si l\u2019\u00e9cart est <strong>inf\u00e9rieur \u00e0 1 minute</strong> (en avance ou en retard), on consid\u00e8re que le bus est <strong>\u00e0 l\u2019heure</strong>. Au-del\u00e0, il est compt\u00e9 comme en retard.</p>
           <details class="about-details">
             <summary>D\u00e9tails techniques</summary>
             <p>Le calcul est : <code>delay = realtime_dep \u2212 scheduled_dep</code> (en secondes). Les observations avec un d\u00e9calage sup\u00e9rieur \u00e0 1 heure sont \u00e9cart\u00e9es (probable d\u00e9calage de date). La d\u00e9duplication est faite sur le tuple <code>(trip_id, stop_id, scheduled_dep)</code> pour \u00e9viter les doublons li\u00e9s au polling fr\u00e9quent.</p>

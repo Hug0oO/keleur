@@ -838,6 +838,35 @@ select { flex: 1; min-width: 0; }
   letter-spacing: -0.2px;
 }
 
+/* Concrete example */
+.about-example {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  margin: 0.6rem 0;
+}
+
+.about-example-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--primary);
+  margin-bottom: 0.4rem;
+}
+
+.about-example p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 0.35rem;
+}
+
+.about-example p:last-child { margin-bottom: 0; }
+.about-example p strong { color: var(--text); }
+
 /* Technical details */
 .about-details {
   margin-top: 0.5rem;
