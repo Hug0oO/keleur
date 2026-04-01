@@ -89,7 +89,9 @@ nav {
   background: #fff;
   border-top: 1px solid var(--border);
   z-index: 200;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  /* Fallback 0.5rem for browsers that don't support env(), then safe-area for notch/home bar */
+  padding-bottom: 0.5rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 .bottom-nav-inner {
@@ -771,7 +773,7 @@ select { flex: 1; min-width: 0; }
 
 /* Mobile: show bottom nav, hide top nav-links */
 @media (max-width: 639px) {
-  :root { --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px)); }
+  :root { --bottom-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px)); }
 
   .nav-links { display: none; }
   .bottom-nav { display: block; }
