@@ -297,7 +297,7 @@ function renderStatCards(stats) {
         <div class="label">\u00c0 l\u2019heure</div>
       </div>
       <div class="stat-card">
-        <div class="value red">${stats.avg_late_delay_seconds ? formatDelay(Math.round(stats.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
+        <div class="value" style="color:${delayColorCSS(stats.avg_delay_seconds)}">${formatDelay(Math.round(stats.avg_delay_seconds), true)}</div>
         <div class="label">Retard moyen</div>
       </div>
       <div class="stat-card">
@@ -358,7 +358,7 @@ async function viewOverview() {
           <div class="ov-label">\u00c0 l\u2019heure</div>
         </div>
         <div class="overview-stat">
-          <div class="ov-value" style="color:var(--red)">${formatDelay(Math.round(overview.avg_late_delay_seconds), true)}</div>
+          <div class="ov-value" style="color:${delayColorCSS(overview.avg_delay_seconds)}">${formatDelay(Math.round(overview.avg_delay_seconds), true)}</div>
           <div class="ov-label">Retard moy.</div>
         </div>
       </div>
