@@ -21,6 +21,13 @@ function route() {
     a.classList.toggle("active", a.getAttribute("href") === hash.split("/").slice(0, 2).join("/") || (hash === "#/" && a.getAttribute("href") === "#/"));
   });
 
+  // Bottom nav active state
+  const navMap = { "": "home", "search": "search", "rankings": "rankings", "trips": "trips" };
+  const activeNav = navMap[parts[0]] || "";
+  document.querySelectorAll("#bottom-nav a").forEach((a) => {
+    a.classList.toggle("active", a.dataset.nav === activeNav);
+  });
+
   if (parts[0] === "" || parts[0] === undefined) return viewOverview();
   if (parts[0] === "search") return viewSearch();
   if (parts[0] === "route-stats" && parts[1]) return viewRouteStats(decodeURIComponent(parts[1]));
@@ -513,8 +520,7 @@ async function viewRoute(routeId) {
 
           <h2 class="section-title">Mon horaire</h2>
           <div class="card">
-            <input type="text" id="dep-time-search" placeholder="Tapez une heure, ex : 07:30"
-              style="width:100%;padding:0.6rem 0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:0.9rem;font-family:var(--font);margin-bottom:0.6rem">
+            <input type="text" id="dep-time-search" placeholder="Tapez une heure, ex : 07:30" class="input-search-time">
             <div id="dep-time-results">${loading()}</div>
           </div>
 

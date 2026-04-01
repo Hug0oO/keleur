@@ -25,6 +25,7 @@
   --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --max-w: 800px;
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --bottom-nav-h: 0px;
 }
 
 html { font-size: 16px; -webkit-font-smoothing: antialiased; }
@@ -78,11 +79,50 @@ nav {
 .nav-links a:hover { color: var(--text); background: var(--bg); }
 .nav-links a.active { color: var(--primary); background: var(--primary-light); }
 
+/* ── Bottom navigation (mobile) ──────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  z-index: 200;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-nav-inner {
+  display: flex;
+  justify-content: space-around;
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.75rem;
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  min-width: 4rem;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav a .nav-icon { font-size: 1.25rem; line-height: 1; }
+.bottom-nav a.active { color: var(--primary); }
+
 /* ── Main ────────────────────────────────────────────────────── */
 main {
   max-width: var(--max-w);
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
+  padding: 1.5rem 1.25rem calc(1.5rem + var(--bottom-nav-h));
 }
 
 /* ── Page header ─────────────────────────────────────────────── */
@@ -512,6 +552,26 @@ select { flex: 1; min-width: 0; }
 .worst-dep-info { flex: 1; font-size: 0.78rem; color: var(--text-muted); }
 .worst-dep-delay { font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
 
+/* ── Time search input ──────────────────────────────────────── */
+.input-search-time {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font);
+  margin-bottom: 0.6rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-search-time:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
 /* ── Departure time list ─────────────────────────────────────── */
 .dep-time-list { display: flex; flex-direction: column; gap: 0.25rem; }
 
@@ -702,15 +762,116 @@ select { flex: 1; min-width: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Responsive ──────────────────────────────────────────────── */
+
+/* Desktop: side-by-side charts, 4-col stats */
 @media (min-width: 640px) {
   .charts-grid { grid-template-columns: 1fr 1fr; }
   .card-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-@media (max-width: 400px) {
-  .stat-card .value { font-size: 1.3rem; }
-  .bar-label { width: 4rem; font-size: 0.72rem; }
-  .bar-value { width: 3rem; font-size: 0.72rem; }
-  .nav-links a { font-size: 0.75rem; padding: 0.35rem 0.4rem; }
-  .overview-stat .ov-value { font-size: 1.1rem; }
+/* Mobile: show bottom nav, hide top nav-links */
+@media (max-width: 639px) {
+  :root { --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px)); }
+
+  .nav-links { display: none; }
+  .bottom-nav { display: block; }
+
+  nav { height: 48px; justify-content: center; }
+
+  main { padding: 1rem 0.85rem calc(1rem + var(--bottom-nav-h)); }
+
+  /* Overview stats: 2x2 grid instead of 4-col flex */
+  .overview-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .overview-stat { border-right: none; border-bottom: 1px solid var(--border); }
+  .overview-stat:nth-child(odd) { border-right: 1px solid var(--border); }
+  .overview-stat:nth-last-child(-n+2) { border-bottom: none; }
+
+  /* Selects: stack vertically */
+  .select-group {
+    flex-direction: column;
+  }
+  .select-group select { flex: none; width: 100%; }
+  .select-group .btn { align-self: flex-start; }
+
+  /* Page header: allow wrapping */
+  .page-header-text h1 { font-size: 1.05rem; }
+  .page-header-text .subtitle { font-size: 0.78rem; }
+
+  /* Stat cards: ensure no overflow */
+  .stat-card { padding: 0.75rem 0.5rem; }
+  .stat-card .value { font-size: 1.35rem; }
+  .stat-card .label { font-size: 0.65rem; letter-spacing: 0.3px; }
+
+  /* Bar charts: narrower labels */
+  .bar-label { width: 4.5rem; font-size: 0.75rem; }
+  .bar-value { width: 3.2rem; font-size: 0.75rem; }
+
+  /* Filter panel pills: smaller, tighter */
+  .pill { padding: 0.3rem 0.5rem; font-size: 0.72rem; }
+  .filter-section-label { font-size: 0.65rem; }
+
+  /* Rankings: allow wrap on meta */
+  .ranking-meta { white-space: normal; word-break: break-word; }
+  .ranking-item { gap: 0.5rem; padding: 0.7rem 0.75rem; }
+  .ranking-rank { min-width: 1.5rem; font-size: 0.85rem; }
+  .ranking-delay .delay-value { font-size: 0.85rem; }
+  .ranking-ontime { font-size: 0.65rem; }
+
+  /* Departure times: tighter layout */
+  .dep-time-item { gap: 0.4rem; padding: 0.45rem 0.5rem; }
+  .dep-time-hour { font-size: 0.88rem; min-width: 3rem; }
+  .dep-time-stats { gap: 0.4rem; }
+  .dep-time-ontime { font-size: 0.78rem; min-width: 2rem; }
+  .dep-time-delay { font-size: 0.75rem; }
+  .dep-time-count { font-size: 0.65rem; }
+
+  /* Search results */
+  .search-result-item { gap: 0.5rem; padding: 0.55rem 0.65rem; }
+
+  /* Route list items */
+  .route-item { padding: 0.7rem 0.75rem; gap: 0.6rem; }
+  .route-name { font-size: 0.85rem; }
+  .route-meta { font-size: 0.72rem; }
+
+  /* Trip cards */
+  .trip-card { padding: 0.7rem 0.75rem; gap: 0.5rem; }
+
+  /* Worst departures */
+  .worst-dep-item { gap: 0.4rem; padding: 0.45rem 0.6rem; }
+  .worst-dep-time { font-size: 0.88rem; min-width: 3rem; }
+
+  /* About card */
+  .about-card { padding: 1rem; }
+  .about-card p { font-size: 0.78rem; }
+
+  /* Section titles */
+  .section-title { font-size: 0.72rem; margin: 1.25rem 0 0.5rem; }
+}
+
+/* Very small screens (iPhone SE / 320-375px) */
+@media (max-width: 374px) {
+  main { padding: 0.75rem 0.6rem calc(0.75rem + var(--bottom-nav-h)); }
+
+  .stat-card .value { font-size: 1.15rem; }
+  .stat-card .label { font-size: 0.6rem; }
+  .stat-card { padding: 0.6rem 0.35rem; }
+
+  .bar-label { width: 3.5rem; font-size: 0.68rem; }
+  .bar-value { width: 2.8rem; font-size: 0.68rem; }
+
+  .overview-stat .ov-value { font-size: 1.05rem; }
+  .overview-stat .ov-label { font-size: 0.58rem; }
+  .overview-stat { padding: 0.7rem 0.3rem; }
+
+  .page-header-text h1 { font-size: 0.95rem; }
+
+  .ranking-name { font-size: 0.82rem; }
+
+  .bottom-nav a { font-size: 0.58rem; min-width: 3.5rem; padding: 0.4rem 0.5rem; }
+  .bottom-nav a .nav-icon { font-size: 1.1rem; }
+
+  .route-badge { min-width: 2.5rem; height: 1.75rem; font-size: 0.75rem; padding: 0 0.35rem; }
 }
