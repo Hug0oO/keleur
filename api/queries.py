@@ -336,7 +336,7 @@ def get_departure_times(
         FROM delay_observations
         {where}
         GROUP BY strftime(scheduled_dep, '%H:%M')
-        HAVING count(*) >= 2
+        HAVING count(*) >= 1
         ORDER BY strftime(scheduled_dep, '%H:%M')
     """, params).fetchall()
 
