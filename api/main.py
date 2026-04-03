@@ -314,8 +314,9 @@ def rankings_stops():
         JOIN trips t ON o.trip_id = t.trip_id
         JOIN routes r ON o.route_id = r.route_id
         WHERE o.observed_at >= current_date - INTERVAL '30 days'
+          AND o.stop_sequence > 1
         GROUP BY s.stop_name, r.route_id, r.short_name, r.color, t.trip_headsign
-        HAVING count(*) >= 20
+        HAVING count(*) >= 20 AND stddev(o.delay_seconds) > 0
     """).fetchall()
 
     items = [
