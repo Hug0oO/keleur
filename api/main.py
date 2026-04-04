@@ -254,6 +254,30 @@ def departure_times(
     return queries.get_departure_times(get_conn(), f)
 
 
+@app.get("/api/stats/trend")
+def weekly_trend(
+    route_id: str,
+    stop_id: str = Query(default=None),
+    headsign: str = Query(default=None),
+    days: int = Query(default=90),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    f = _parse_filters(route_id, stop_id=stop_id, headsign=headsign, days=days, days_of_week=days_of_week, holidays=holidays)
+    return queries.get_weekly_trend(get_conn(), f)
+
+
+@app.get("/api/routes/{route_id}/stats/trend")
+def route_weekly_trend(
+    route_id: str,
+    days: int = Query(default=90),
+    days_of_week: str = Query(default=None),
+    holidays: str = Query(default="all"),
+):
+    f = _parse_filters(route_id, days=days, days_of_week=days_of_week, holidays=holidays)
+    return queries.get_weekly_trend(get_conn(), f)
+
+
 # ── Route-level stats (all stops) ─────────────────────────────────────
 
 @app.get("/api/routes/{route_id}/stats")
@@ -329,8 +353,8 @@ def rankings_stops():
         for r in rows
     ]
 
-    worst = sorted(items, key=lambda x: x["avg_delay_seconds"] or 0, reverse=True)[:3]
-    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:3]
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"] or 0, reverse=True)[:10]
+    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:10]
     return {"worst": worst, "best": best}
 
 
@@ -364,8 +388,8 @@ def rankings_routes():
         for r in rows
     ]
 
-    worst = sorted(items, key=lambda x: x["avg_delay_seconds"] or 0, reverse=True)[:3]
-    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:3]
+    worst = sorted(items, key=lambda x: x["avg_delay_seconds"] or 0, reverse=True)[:10]
+    best = sorted(items, key=lambda x: x["on_time_percent"], reverse=True)[:10]
     return {"worst": worst, "best": best}
 
 

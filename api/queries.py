@@ -352,3 +352,36 @@ def get_departure_times(
         }
         for r in rows
     ]
+
+
+# ── Weekly trend ──────────────────────────────────────────────
+
+
+def get_weekly_trend(
+    conn: duckdb.DuckDBPyConnection, f: FilterParams
+) -> list[dict]:
+    """Punctuality trend by week over the filter period."""
+    where, params = _build_filters(f)
+
+    rows = conn.execute(f"""
+        SELECT
+            date_trunc('week', observed_at) as week_start,
+            count(*) as total,
+            round(avg(delay_seconds), 1) as avg_delay,
+            round(count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*), 1) as on_time_pct
+        FROM delay_observations
+        {where}
+        GROUP BY date_trunc('week', observed_at)
+        HAVING count(*) >= 5
+        ORDER BY week_start
+    """, params).fetchall()
+
+    return [
+        {
+            "week": str(r[0].date()),
+            "total_observations": r[1],
+            "avg_delay_seconds": r[2],
+            "on_time_percent": r[3],
+        }
+        for r in rows
+    ]

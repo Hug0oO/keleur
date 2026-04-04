@@ -36,6 +36,7 @@ function route() {
   if (parts[0] === "route" && parts[1]) return viewRoute(decodeURIComponent(parts[1]));
   if (parts[0] === "rankings") return viewRankings();
   if (parts[0] === "trips") return viewTrips();
+  if (parts[0] === "compare") return viewCompare();
   if (parts[0] === "about") return viewAbout();
   return viewOverview();
 }
@@ -57,6 +58,54 @@ function hashParams() {
 
 function loading() {
   return `<div class="loading"><div class="spinner"></div>Chargement...</div>`;
+}
+
+function skeleton(type = "page") {
+  if (type === "stats") return `
+    <div class="skeleton-cards">
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    </div>
+    <div class="skeleton skeleton-text medium"></div>
+  `;
+  if (type === "chart") return `
+    <div class="card" style="padding:1rem">
+      ${Array(5).fill('<div class="skeleton skeleton-bar"></div>').join("")}
+    </div>
+  `;
+  if (type === "list") return `
+    ${Array(4).fill('<div class="skeleton skeleton-route"></div>').join("")}
+  `;
+  return `
+    <div class="skeleton skeleton-title"></div>
+    <div class="skeleton-cards">
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    </div>
+    <div class="skeleton skeleton-text medium"></div>
+    <div style="margin-top:1.5rem">
+      ${Array(3).fill('<div class="skeleton skeleton-route"></div>').join("")}
+    </div>
+  `;
+}
+
+function reliabilityScore(onTimePct) {
+  if (onTimePct == null) return { letter: "-", cls: "" };
+  if (onTimePct >= 90) return { letter: "A", cls: "score-A" };
+  if (onTimePct >= 75) return { letter: "B", cls: "score-B" };
+  if (onTimePct >= 60) return { letter: "C", cls: "score-C" };
+  if (onTimePct >= 40) return { letter: "D", cls: "score-D" };
+  return { letter: "E", cls: "score-E" };
+}
+
+function scoreBadge(onTimePct) {
+  const s = reliabilityScore(onTimePct);
+  if (!s.cls) return "";
+  return `<span class="score-badge ${s.cls}">${s.letter}</span>`;
 }
 
 function delayColor(seconds) {
@@ -121,6 +170,82 @@ function barChart(rows, labelKey, valueKey, maxValue, colorFn) {
       </div>`;
     })
     .join("")}</div>`;
+}
+
+// ── Trend chart ─────────────────────────────────────────
+
+function trendChart(weeks) {
+  if (!weeks || weeks.length < 2) return `<div style="text-align:center;color:var(--text-muted);font-size:0.82rem;padding:1rem">Pas assez de semaines de donn\u00e9es</div>`;
+  const maxPct = 100;
+  return `<div class="trend-chart">
+    ${weeks.map((w, i) => {
+      const h = Math.max(2, (w.on_time_percent / maxPct) * 100);
+      const color = w.on_time_percent >= 75 ? "var(--green)" : w.on_time_percent >= 50 ? "var(--orange)" : "var(--red)";
+      const label = w.week.slice(5);
+      return `<div class="trend-bar-wrap" title="${w.week}: ${w.on_time_percent}% \u00e0 l\u2019heure (${w.total_observations} obs)">
+        <div class="trend-bar" style="height:${h}%;background:${color}"></div>
+        ${i % Math.max(1, Math.floor(weeks.length / 6)) === 0 || i === weeks.length - 1 ? `<span class="trend-label">${label}</span>` : ""}
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+// ── Export helpers ───────────────────────────────────────
+
+function exportCSV(data, filename) {
+  if (!data.length) return;
+  const keys = Object.keys(data[0]);
+  const csv = [keys.join(","), ...data.map(r => keys.map(k => JSON.stringify(r[k] ?? "")).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportJSON(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function renderExportRow(data, name) {
+  return `<div class="export-row">
+    <button class="btn btn-outline btn-sm" onclick='exportCSV(${JSON.stringify(data).replace(/'/g, "\\u0027")}, "${name}.csv")'>CSV</button>
+    <button class="btn btn-outline btn-sm" onclick='exportJSON(${JSON.stringify(data).replace(/'/g, "\\u0027")}, "${name}.json")'>JSON</button>
+  </div>`;
+}
+
+// ── Share ────────────────────────────────────────────────
+
+function shareStats(title, text) {
+  if (navigator.share) {
+    navigator.share({ title, text, url: location.href }).catch(() => {});
+  } else {
+    const overlay = document.createElement("div");
+    overlay.className = "share-overlay";
+    overlay.innerHTML = `<div class="share-modal">
+      <h3>Partager</h3>
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem">${text}</p>
+      <div class="share-actions">
+        <button class="btn" id="share-copy">Copier le lien</button>
+        <button class="btn btn-outline" id="share-close">Fermer</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#share-copy").addEventListener("click", () => {
+      navigator.clipboard.writeText(text + "\n" + location.href).then(() => {
+        overlay.querySelector("#share-copy").textContent = "Copi\u00e9 !";
+        setTimeout(() => overlay.remove(), 1000);
+      });
+    });
+    overlay.querySelector("#share-close").addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  }
 }
 
 // ── Filter panel ─────────────────────────────────────────────
@@ -285,6 +410,7 @@ function renderDepartureList(departures, query) {
       ${shown.map((d) => `
         <div class="dep-time-item">
           <span class="dep-time-hour">${d.departure_time}</span>
+          ${scoreBadge(d.on_time_percent)}
           <div class="dep-time-stats">
             <span class="dep-time-ontime" style="color:${d.on_time_percent >= 70 ? "var(--green)" : d.on_time_percent >= 50 ? "var(--orange)" : "var(--red)"}">${d.on_time_percent.toFixed(0)}%</span>
             <span class="dep-time-delay" style="color:${delayColorCSS(d.avg_delay_seconds)}">${formatDelayExact(d.avg_delay_seconds)}</span>
@@ -320,6 +446,9 @@ function renderStatCards(stats) {
       </div>
     </div>
     ${stats.first_observation ? `<div class="data-footnote">Depuis le ${new Date(stats.first_observation).toLocaleDateString("fr")}</div>` : ""}
+    <div class="export-row">
+      <button class="btn btn-outline btn-sm" onclick="shareStats('Keleur', '\u00c0 l\u2019heure: ${stats.on_time_percent?.toFixed(0) ?? "-"}% \u00b7 ${(stats.total_observations || 0).toLocaleString("fr")} passages')">Partager</button>
+    </div>
   `;
 }
 
@@ -334,7 +463,7 @@ function saveTrips(trips) { localStorage.setItem("keleur_trips", JSON.stringify(
 // ── View: Overview ───────────────────────────────────────────
 
 async function viewOverview() {
-  app().innerHTML = loading();
+  app().innerHTML = skeleton("page");
 
   try {
     const [overview, routes] = await Promise.all([api("/overview"), api("/routes")]);
@@ -406,7 +535,7 @@ async function viewOverview() {
 // ── View: Route detail ───────────────────────────────────────
 
 async function viewRoute(routeId) {
-  app().innerHTML = loading();
+  app().innerHTML = skeleton("page");
 
   try {
     const [routes, directions] = await Promise.all([
@@ -487,16 +616,17 @@ async function viewRoute(routeId) {
       const idx = parseInt(selDir.value);
       const currentHeadsign = dirOptions[idx]?.headsign;
 
-      $("#route-stats").innerHTML = loading();
+      $("#route-stats").innerHTML = skeleton("stats") + skeleton("chart");
 
       try {
         let base = `route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}`;
         if (currentHeadsign) base += `&headsign=${encodeURIComponent(currentHeadsign)}`;
-        const [stats, byDay, byHour, worst] = await Promise.all([
+        const [stats, byDay, byHour, worst, trend] = await Promise.all([
           api(`/stats?${base}${fqs}`),
           api(`/stats/by-day?${base}${fqs}`),
           api(`/stats/by-hour?${base}${fqs}`),
           api(`/stats/worst-departures?${base}${fqs}`),
+          api(`/stats/trend?${base}&days=90`),
         ]);
 
         if (stats.total_observations === 0) {
@@ -521,6 +651,11 @@ async function viewRoute(routeId) {
               </div>
             </div>
           </div>
+
+          ${trend.length >= 2 ? `
+            <h2 class="section-title">\u00c9volution hebdomadaire</h2>
+            <div class="card">${trendChart(trend)}</div>
+          ` : ""}
 
           <h2 class="section-title">Mon horaire</h2>
           <div class="card">
@@ -580,7 +715,7 @@ async function viewRoute(routeId) {
 // ── View: Route global stats ─────────────────────────────────
 
 async function viewRouteStats(routeId) {
-  app().innerHTML = loading();
+  app().innerHTML = skeleton("page");
 
   try {
     const routes = await api("/routes");
@@ -610,14 +745,15 @@ async function viewRouteStats(routeId) {
       if (!filters) filters = getFilterValues("route-filters");
       const rid = encodeURIComponent(routeId);
 
-      $("#route-stats-content").innerHTML = loading();
+      $("#route-stats-content").innerHTML = skeleton("stats") + skeleton("chart");
 
       try {
         const qs = buildFilterQS(filters, "?");
-        const [stats, byDay, byHour] = await Promise.all([
+        const [stats, byDay, byHour, trend] = await Promise.all([
           api(`/routes/${rid}/stats${qs}`),
           api(`/routes/${rid}/stats/by-day${qs}`),
           api(`/routes/${rid}/stats/by-hour${qs}`),
+          api(`/routes/${rid}/stats/trend?days=90`),
         ]);
 
         if (stats.total_observations === 0) {
@@ -642,6 +778,11 @@ async function viewRouteStats(routeId) {
               </div>
             </div>
           </div>
+
+          ${trend.length >= 2 ? `
+            <h2 class="section-title">\u00c9volution hebdomadaire</h2>
+            <div class="card">${trendChart(trend)}</div>
+          ` : ""}
         `;
       } catch (err) {
         $("#route-stats-content").innerHTML = `<div class="empty">Erreur : ${err.message}</div>`;
@@ -715,7 +856,7 @@ async function viewSearch() {
 // ── View: Rankings ───────────────────────────────────────────
 
 async function viewRankings() {
-  app().innerHTML = loading();
+  app().innerHTML = skeleton("list");
 
   try {
     const [stops, routes] = await Promise.all([
@@ -728,6 +869,7 @@ async function viewRankings() {
       return items.map((s, i) => `
         <a href="#/route/${encodeURIComponent(s.route_id)}?stop=${encodeURIComponent(s.stop_name)}&headsign=${encodeURIComponent(s.headsign)}" class="ranking-item">
           <span class="ranking-rank">#${i + 1}</span>
+          ${scoreBadge(s.on_time_percent)}
           ${routeBadge(s.short_name, s.color)}
           <div class="ranking-info">
             <div class="ranking-name">${s.stop_name}</div>
@@ -746,6 +888,7 @@ async function viewRankings() {
       return items.map((r, i) => `
         <a href="#/route-stats/${encodeURIComponent(r.route_id)}" class="ranking-item">
           <span class="ranking-rank">#${i + 1}</span>
+          ${scoreBadge(r.on_time_percent)}
           ${routeBadge(r.short_name, r.color)}
           <div class="ranking-info">
             <div class="ranking-name">${r.long_name}</div>
@@ -760,18 +903,40 @@ async function viewRankings() {
     }
 
     app().innerHTML = `
-      <h2 class="section-title">Pires arr\u00eats</h2>
-      ${renderStopList(stops.worst)}
+      <div class="pill-group" style="margin-bottom:1rem" id="ranking-tabs">
+        <button class="pill active" data-tab="stops">Arr\u00eats</button>
+        <button class="pill" data-tab="routes">Lignes</button>
+      </div>
 
-      <h2 class="section-title">Meilleurs arr\u00eats</h2>
-      ${renderStopList(stops.best)}
+      <div id="ranking-content">
+        <div id="tab-stops">
+          <h2 class="section-title" style="margin-top:0">Pires arr\u00eats</h2>
+          ${renderStopList(stops.worst)}
+          <h2 class="section-title">Meilleurs arr\u00eats</h2>
+          ${renderStopList(stops.best)}
+        </div>
+        <div id="tab-routes" style="display:none">
+          <h2 class="section-title" style="margin-top:0">Pires lignes</h2>
+          ${renderRouteList(routes.worst)}
+          <h2 class="section-title">Meilleures lignes</h2>
+          ${renderRouteList(routes.best)}
+        </div>
+      </div>
 
-      <h2 class="section-title">Pires lignes</h2>
-      ${renderRouteList(routes.worst)}
-
-      <h2 class="section-title">Meilleures lignes</h2>
-      ${renderRouteList(routes.best)}
+      <div style="margin-top:1.25rem;text-align:center">
+        <a href="#/compare" class="btn btn-outline">Comparer des lignes</a>
+      </div>
     `;
+
+    document.querySelectorAll("#ranking-tabs .pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll("#ranking-tabs .pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+        const tab = pill.dataset.tab;
+        document.getElementById("tab-stops").style.display = tab === "stops" ? "" : "none";
+        document.getElementById("tab-routes").style.display = tab === "routes" ? "" : "none";
+      });
+    });
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-text">Erreur de chargement : ${err.message}</div></div>`;
   }
@@ -836,6 +1001,81 @@ window.removeTrip = function (idx) {
   saveTrips(trips);
   viewTrips();
 };
+
+// ── View: Compare ───────────────────────────────────────
+
+async function viewCompare() {
+  app().innerHTML = skeleton("page");
+
+  try {
+    const routes = await api("/routes");
+
+    app().innerHTML = `
+      <a href="javascript:void(0)" onclick="history.back()" class="back-link">\u2190 Retour</a>
+      <h1 style="font-size:1.15rem;font-weight:700;margin-bottom:1rem">Comparer des lignes</h1>
+
+      <div class="compare-select-group">
+        <select id="cmp-1"><option value="">Ligne 1\u2026</option>${routes.map((r) => `<option value="${r.route_id}">${r.short_name} \u2014 ${r.long_name}</option>`).join("")}</select>
+        <select id="cmp-2"><option value="">Ligne 2\u2026</option>${routes.map((r) => `<option value="${r.route_id}">${r.short_name} \u2014 ${r.long_name}</option>`).join("")}</select>
+        <select id="cmp-3"><option value="">Ligne 3 (opt.)</option><option value="">Aucune</option>${routes.map((r) => `<option value="${r.route_id}">${r.short_name} \u2014 ${r.long_name}</option>`).join("")}</select>
+      </div>
+      <button class="btn" id="cmp-go" style="width:100%;margin-bottom:1rem">Comparer</button>
+      <div id="cmp-results"></div>
+    `;
+
+    document.getElementById("cmp-go").addEventListener("click", async () => {
+      const ids = [$("#cmp-1").value, $("#cmp-2").value, $("#cmp-3").value].filter(Boolean);
+      if (ids.length < 2) {
+        document.getElementById("cmp-results").innerHTML = `<div class="empty"><div class="empty-text">S\u00e9lectionnez au moins 2 lignes</div></div>`;
+        return;
+      }
+
+      document.getElementById("cmp-results").innerHTML = skeleton("stats");
+
+      try {
+        const stats = await Promise.all(ids.map((id) => api(`/routes/${encodeURIComponent(id)}/stats?days=30`)));
+        const infos = ids.map((id) => routes.find((r) => r.route_id === id) || {});
+
+        document.getElementById("cmp-results").innerHTML = `
+          <div class="card" style="overflow-x:auto">
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th>Ligne</th>
+                  <th>Score</th>
+                  <th>\u00c0 l\u2019heure</th>
+                  <th>Retard moy.</th>
+                  <th>&gt; 5 min</th>
+                  <th>Passages</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${stats.map((s, i) => `
+                  <tr>
+                    <td>${routeBadge(infos[i].short_name, infos[i].color)}</td>
+                    <td>${scoreBadge(s.on_time_percent)}</td>
+                    <td style="font-weight:700;color:${s.on_time_percent >= 70 ? "var(--green)" : s.on_time_percent >= 50 ? "var(--orange)" : "var(--red)"}">${s.on_time_percent?.toFixed(0) ?? "-"}%</td>
+                    <td style="color:${delayColorCSS(s.avg_delay_seconds)}">${formatDelay(Math.round(s.avg_delay_seconds || 0), true)}</td>
+                    <td>${(s.late_5min_percent || 0).toFixed(0)}%</td>
+                    <td>${(s.total_observations || 0).toLocaleString("fr")}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="export-row" style="margin-top:0.5rem">
+            <button class="btn btn-outline btn-sm" onclick='exportCSV(${JSON.stringify(stats.map((s, i) => ({ ligne: infos[i].short_name, on_time_pct: s.on_time_percent, avg_delay: s.avg_delay_seconds, late_5min_pct: s.late_5min_percent, passages: s.total_observations }))).replace(/'/g, "\\u0027")}, "comparaison.csv")'>Exporter CSV</button>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById("cmp-results").innerHTML = `<div class="empty">Erreur : ${err.message}</div>`;
+      }
+    });
+  } catch (err) {
+    app().innerHTML = `<div class="empty"><div class="empty-text">Erreur : ${err.message}</div></div>`;
+  }
+}
 
 // ── View: About ─────────────────────────────────────────
 
@@ -967,6 +1207,79 @@ async function viewAbout() {
     </div>
   `;
 }
+
+// ── Pull-to-refresh ─────────────────────────────────────────
+
+(function initPullToRefresh() {
+  let startY = 0;
+  let pulling = false;
+  const threshold = 80;
+  let indicator = null;
+
+  function getIndicator() {
+    if (!indicator) {
+      indicator = document.createElement("div");
+      indicator.className = "ptr-indicator";
+      indicator.textContent = "↻ Actualiser";
+      document.body.prepend(indicator);
+    }
+    return indicator;
+  }
+
+  document.addEventListener("touchstart", (e) => {
+    if (window.scrollY === 0 && e.touches.length === 1) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (e) => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 10 && window.scrollY === 0) {
+      const el = getIndicator();
+      const progress = Math.min(dy / threshold, 1);
+      el.style.transform = `translateY(${Math.min(dy * 0.4, 50)}px)`;
+      el.style.opacity = progress;
+      el.classList.toggle("ready", dy >= threshold);
+    }
+  }, { passive: true });
+
+  document.addEventListener("touchend", () => {
+    if (!pulling) return;
+    pulling = false;
+    const el = getIndicator();
+    if (el.classList.contains("ready")) {
+      el.textContent = "Chargement…";
+      el.style.transform = "translateY(40px)";
+      route();
+      setTimeout(() => {
+        el.style.transform = "translateY(-50px)";
+        el.style.opacity = "0";
+        setTimeout(() => { el.textContent = "↻ Actualiser"; el.classList.remove("ready"); }, 300);
+      }, 600);
+    } else {
+      el.style.transform = "translateY(-50px)";
+      el.style.opacity = "0";
+    }
+  }, { passive: true });
+})();
+
+// ── Offline banner ──────────────────────────────────────────
+
+(function initOfflineBanner() {
+  const banner = document.createElement("div");
+  banner.className = "offline-banner";
+  banner.textContent = "Hors connexion — données en cache";
+  document.body.prepend(banner);
+
+  function update() {
+    banner.classList.toggle("visible", !navigator.onLine);
+  }
+  window.addEventListener("online", update);
+  window.addEventListener("offline", update);
+  update();
+})();
 
 // ── Service worker ───────────────────────────────────────────
 
