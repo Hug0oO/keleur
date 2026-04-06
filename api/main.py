@@ -270,11 +270,12 @@ def weekly_trend(
 @app.get("/api/routes/{route_id}/stats/trend")
 def route_weekly_trend(
     route_id: str,
+    headsign: str = Query(default=None),
     days: int = Query(default=90),
     days_of_week: str = Query(default=None),
     holidays: str = Query(default="all"),
 ):
-    f = _parse_filters(route_id, days=days, days_of_week=days_of_week, holidays=holidays)
+    f = _parse_filters(route_id, headsign=headsign, days=days, days_of_week=days_of_week, holidays=holidays)
     return queries.get_weekly_trend(get_conn(), f)
 
 
@@ -283,37 +284,40 @@ def route_weekly_trend(
 @app.get("/api/routes/{route_id}/stats")
 def route_global_stats(
     route_id: str,
+    headsign: str = Query(default=None),
     days: int = Query(default=30),
     time_from: str = Query(default=None),
     time_to: str = Query(default=None),
     days_of_week: str = Query(default=None),
     holidays: str = Query(default="all"),
 ):
-    f = _parse_filters(route_id, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
+    f = _parse_filters(route_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_route_stats(get_conn(), f)
 
 @app.get("/api/routes/{route_id}/stats/by-day")
 def route_stats_by_day(
     route_id: str,
+    headsign: str = Query(default=None),
     days: int = Query(default=30),
     time_from: str = Query(default=None),
     time_to: str = Query(default=None),
     days_of_week: str = Query(default=None),
     holidays: str = Query(default="all"),
 ):
-    f = _parse_filters(route_id, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
+    f = _parse_filters(route_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_route_stats_by_day(get_conn(), f)
 
 @app.get("/api/routes/{route_id}/stats/by-hour")
 def route_stats_by_hour(
     route_id: str,
+    headsign: str = Query(default=None),
     days: int = Query(default=30),
     time_from: str = Query(default=None),
     time_to: str = Query(default=None),
     days_of_week: str = Query(default=None),
     holidays: str = Query(default="all"),
 ):
-    f = _parse_filters(route_id, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
+    f = _parse_filters(route_id, headsign=headsign, days=days, time_from=time_from, time_to=time_to, days_of_week=days_of_week, holidays=holidays)
     return queries.get_route_stats_by_hour(get_conn(), f)
 
 

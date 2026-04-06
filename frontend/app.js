@@ -718,7 +718,10 @@ async function viewRouteStats(routeId) {
   app().innerHTML = skeleton("page");
 
   try {
-    const routes = await api("/routes");
+    const [routes, directions] = await Promise.all([
+      api("/routes"),
+      api(`/routes/${encodeURIComponent(routeId)}/directions`),
+    ]);
     const routeInfo = routes.find((r) => r.route_id === routeId) || {};
 
     app().innerHTML = `
@@ -732,6 +735,13 @@ async function viewRouteStats(routeId) {
         </div>
       </div>
 
+      <div class="select-group">
+        <select id="sel-rs-dir">
+          <option value="">Toutes directions</option>
+          ${directions.map((d) => `<option value="${encodeURIComponent(d.headsign || "")}">Vers ${d.headsign || (d.direction_id === 0 ? "A" : "B")}</option>`).join("")}
+        </select>
+      </div>
+
       ${renderFilterPanel("route-filters")}
 
       <div id="route-stats-content">${loading()}</div>
@@ -741,19 +751,25 @@ async function viewRouteStats(routeId) {
       </div>
     `;
 
+    const selDir = $("#sel-rs-dir");
+
     async function loadRouteStats(filters) {
       if (!filters) filters = getFilterValues("route-filters");
       const rid = encodeURIComponent(routeId);
+      const parts = [];
+      if (selDir.value) parts.push(`headsign=${selDir.value}`);
+      const filterQs = buildFilterQS(filters, parts.length ? "&" : "?");
+      const qs = (parts.length ? "?" + parts.join("&") : "") + filterQs;
+      const trendQs = "?days=90" + (selDir.value ? `&headsign=${selDir.value}` : "");
 
       $("#route-stats-content").innerHTML = skeleton("stats") + skeleton("chart");
 
       try {
-        const qs = buildFilterQS(filters, "?");
         const [stats, byDay, byHour, trend] = await Promise.all([
           api(`/routes/${rid}/stats${qs}`),
           api(`/routes/${rid}/stats/by-day${qs}`),
           api(`/routes/${rid}/stats/by-hour${qs}`),
-          api(`/routes/${rid}/stats/trend?days=90`),
+          api(`/routes/${rid}/stats/trend${trendQs}`),
         ]);
 
         if (stats.total_observations === 0) {
@@ -790,6 +806,7 @@ async function viewRouteStats(routeId) {
     }
 
     initFilterPanel("route-filters", loadRouteStats);
+    selDir.addEventListener("change", () => loadRouteStats());
     loadRouteStats();
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-text">Erreur : ${err.message}</div></div>`;
