@@ -184,7 +184,7 @@ function trendChart(weeks) {
       const label = w.week.slice(5);
       return `<div class="trend-bar-wrap" title="${w.week}: ${w.on_time_percent}% \u00e0 l\u2019heure (${w.total_observations} obs)">
         <div class="trend-bar" style="height:${h}%;background:${color}"></div>
-        ${i % Math.max(1, Math.floor(weeks.length / 6)) === 0 || i === weeks.length - 1 ? `<span class="trend-label">${label}</span>` : ""}
+        ${weeks.length <= 8 || i % Math.max(1, Math.floor(weeks.length / 6)) === 0 || i === weeks.length - 1 ? `<span class="trend-label">${label}</span>` : ""}
       </div>`;
     }).join("")}
   </div>`;

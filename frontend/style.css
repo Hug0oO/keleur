@@ -1090,12 +1090,14 @@ main { animation: fadeIn 0.2s ease; }
   height: 10rem;
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
   padding-bottom: 1.5rem;
 }
 
 .trend-bar-wrap {
   flex: 1;
+  max-width: 3rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1111,13 +1113,10 @@ main { animation: fadeIn 0.2s ease; }
 }
 
 .trend-label {
-  position: absolute;
-  bottom: 0;
   font-size: 0.6rem;
   color: var(--text-muted);
   white-space: nowrap;
-  transform: rotate(-45deg);
-  transform-origin: top left;
+  margin-top: 4px;
 }
 
 .trend-y-axis {
