@@ -51,19 +51,42 @@ def _today_service_date() -> datetime:
 # ── Schedule cache ─────────────────────────────────────────────────────
 
 class ScheduleCache:
-    """Caches stop_times lookups from DuckDB to avoid repeated queries."""
+    """Caches stop_times lookups from DuckDB to avoid repeated queries.
+
+    Only returns scheduled times for trips whose service_id is active today.
+    This prevents matching a GTFS-RT trip_id against the wrong schedule
+    (e.g. summer schedule trip_ids emitted during the school-year period).
+    """
 
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         self._conn = conn
-        self._cache: dict[str, dict[int, str]] = {}  # trip_id -> {seq: dep_time}
+        self._cache: dict[str, dict[int, str] | None] = {}
+        self._active_services: set[str] = set()
+        self._service_date_str: str = ""
+
+    def refresh_active_services(self, date_str: str) -> None:
+        """Reload active service_ids for the given date (YYYYMMDD)."""
+        if date_str != self._service_date_str:
+            self._active_services = database.get_active_service_ids(
+                self._conn, date_str
+            )
+            self._service_date_str = date_str
+            self._cache.clear()
+            logger.info(
+                "Loaded %d active service_ids for %s",
+                len(self._active_services),
+                date_str,
+            )
 
     def get(self, trip_id: str) -> dict[int, str] | None:
         if trip_id not in self._cache:
-            times = database.get_scheduled_times(self._conn, trip_id)
-            if times:
-                self._cache[trip_id] = times
-            else:
+            # Check if trip's service_id is active today
+            service_id = database.get_trip_service_id(self._conn, trip_id)
+            if service_id and self._active_services and service_id not in self._active_services:
+                self._cache[trip_id] = None  # Cache negative result
                 return None
+            times = database.get_scheduled_times(self._conn, trip_id)
+            self._cache[trip_id] = times if times else None
         return self._cache[trip_id]
 
     def evict(self, trip_ids: set[str]) -> None:
@@ -72,6 +95,7 @@ class ScheduleCache:
 
     def clear(self) -> None:
         self._cache.clear()
+        self._service_date_str = ""
 
 
 # ── Main collector ─────────────────────────────────────────────────────
@@ -158,6 +182,10 @@ class Collector:
         snapshot = gtfs_rt.fetch()
         now = datetime.now(TZ)
         service_date = _today_service_date()
+
+        # Refresh active service_ids once per day
+        date_str = service_date.strftime("%Y%m%d")
+        self._schedule_cache.refresh_active_services(date_str)
 
         current_keys: set[tuple[str, int]] = set()
 

@@ -71,6 +71,14 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS calendar_dates (
+            service_id      VARCHAR,
+            date            VARCHAR,
+            exception_type  SMALLINT
+        )
+    """)
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS gtfs_meta (
             key             VARCHAR PRIMARY KEY,
             value           VARCHAR
@@ -127,9 +135,23 @@ def import_gtfs_static(conn: duckdb.DuckDBPyConnection, gtfs_dir: Path) -> None:
     count = conn.execute("SELECT count(*) FROM stop_times").fetchone()[0]
     logger.info("Imported %d stop_times", count)
 
-    # Create index for fast lookups by trip_id
+    # Calendar dates
+    conn.execute("DELETE FROM calendar_dates")
+    cal_file = gtfs_dir / "calendar_dates.txt"
+    if cal_file.exists():
+        conn.execute(f"""
+            INSERT INTO calendar_dates
+            SELECT service_id, date, CAST(exception_type AS SMALLINT)
+            FROM read_csv_auto('{gtfs_dir}/calendar_dates.txt', header=true, all_varchar=true)
+        """)
+        count = conn.execute("SELECT count(*) FROM calendar_dates").fetchone()[0]
+        logger.info("Imported %d calendar_dates", count)
+
+    # Create indexes for fast lookups
     conn.execute("DROP INDEX IF EXISTS idx_stop_times_trip")
     conn.execute("CREATE INDEX idx_stop_times_trip ON stop_times(trip_id)")
+    conn.execute("DROP INDEX IF EXISTS idx_calendar_dates_service")
+    conn.execute("CREATE INDEX idx_calendar_dates_service ON calendar_dates(service_id, date)")
 
 
 def insert_observations(conn: duckdb.DuckDBPyConnection, observations: list[dict]) -> None:
@@ -189,3 +211,25 @@ def get_scheduled_times(
         [trip_id],
     ).fetchall()
     return {seq: dep for seq, dep in rows}
+
+
+def get_active_service_ids(
+    conn: duckdb.DuckDBPyConnection, date_str: str
+) -> set[str]:
+    """Return service_ids active on a given date (YYYYMMDD format)."""
+    rows = conn.execute(
+        "SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 1",
+        [date_str],
+    ).fetchall()
+    return {r[0] for r in rows}
+
+
+def get_trip_service_id(
+    conn: duckdb.DuckDBPyConnection, trip_id: str
+) -> str | None:
+    """Return the service_id for a trip, or None if not found."""
+    row = conn.execute(
+        "SELECT service_id FROM trips WHERE trip_id = ?",
+        [trip_id],
+    ).fetchone()
+    return row[0] if row else None
