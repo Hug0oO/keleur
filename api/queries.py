@@ -321,7 +321,11 @@ def get_worst_departures(
 def get_departure_times(
     conn: duckdb.DuckDBPyConnection, f: FilterParams
 ) -> list[dict]:
-    """List all observed departure times with per-time stats."""
+    """List observed departure times with per-time stats.
+
+    Groups by 5-minute slots to merge near-identical scheduled times
+    caused by different service_ids (weekday vs weekend vs holiday).
+    """
     where, params = _build_filters(f)
 
     rows = conn.execute(f"""

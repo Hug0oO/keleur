@@ -393,8 +393,8 @@ function renderDepartureList(departures, query) {
 
   let filtered = departures;
   if (query) {
-    const q = query.replace(":", "");
-    filtered = departures.filter((d) => d.departure_time.replace(":", "").includes(q));
+    const q = query.trim();
+    filtered = departures.filter((d) => d.departure_time.startsWith(q));
   }
 
   const shown = query ? filtered : filtered.slice(0, 15);
