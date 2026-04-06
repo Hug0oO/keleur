@@ -261,8 +261,9 @@ class Collector:
             logger.info("GTFS static loaded into database")
 
     def _is_static_loaded(self) -> bool:
-        count = self._conn.execute("SELECT count(*) FROM stop_times").fetchone()[0]
-        return count > 0
+        st = self._conn.execute("SELECT count(*) FROM stop_times").fetchone()[0]
+        cd = self._conn.execute("SELECT count(*) FROM calendar_dates").fetchone()[0]
+        return st > 0 and cd > 0
 
     def _handle_signal(self, signum, frame):
         logger.info("Received signal %d, shutting down…", signum)
