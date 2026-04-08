@@ -210,15 +210,18 @@ class Collector:
             if abs(delay_seconds) > 3600:
                 continue
 
+            # Strip tzinfo before storing: DuckDB TIMESTAMP has no timezone and
+            # would convert tz-aware datetimes to UTC, breaking local-time queries
+            # like "departures around 20:59". Store the wall-clock local Paris time.
             self._buffer[key] = {
-                "observed_at": now,
+                "observed_at": now.replace(tzinfo=None),
                 "trip_id": su.trip_id,
                 "route_id": su.route_id,
                 "stop_id": su.stop_id,
                 "direction_id": su.direction_id,
                 "stop_sequence": su.stop_sequence,
-                "scheduled_dep": scheduled_dep,
-                "realtime_dep": realtime_dep,
+                "scheduled_dep": scheduled_dep.replace(tzinfo=None),
+                "realtime_dep": realtime_dep.replace(tzinfo=None),
                 "delay_seconds": delay_seconds,
                 "feed_timestamp": snapshot.timestamp,
             }
