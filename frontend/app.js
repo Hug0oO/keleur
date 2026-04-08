@@ -497,8 +497,8 @@ async function viewOverview() {
           <div class="ov-label">\u00c0 l\u2019heure</div>
         </div>
         <div class="overview-stat">
-          <div class="ov-value" style="color:${delayColorCSS(overview.avg_delay_seconds)}">${formatDelay(Math.round(overview.avg_delay_seconds), true)}</div>
-          <div class="ov-label">Retard moy.</div>
+          <div class="ov-value" style="color:${overview.avg_late_delay_seconds ? "var(--red)" : "var(--green)"}">${overview.avg_late_delay_seconds ? formatDelay(Math.round(overview.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
+          <div class="ov-label">Quand en retard</div>
         </div>
       </div>
 
