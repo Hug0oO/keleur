@@ -444,7 +444,8 @@ def overview():
             count(DISTINCT stop_id) as stops,
             round(avg(delay_seconds), 1) as avg_delay,
             count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct,
-            round(avg(CASE WHEN delay_seconds >= 60 THEN delay_seconds END), 0) as avg_late_delay
+            round(avg(CASE WHEN delay_seconds >= 60 THEN delay_seconds END), 0) as avg_late_delay,
+            count(CASE WHEN delay_seconds > 300 THEN 1 END) * 100.0 / count(*) as late_5min_pct
         FROM delay_observations
     """).fetchone()
     return {
@@ -456,6 +457,7 @@ def overview():
         "avg_delay_seconds": row[5],
         "on_time_percent": round(row[6], 1) if row[6] else None,
         "avg_late_delay_seconds": row[7],
+        "late_5min_percent": round(row[8], 1) if row[8] is not None else None,
     }
 
 

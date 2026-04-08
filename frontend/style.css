@@ -1237,14 +1237,18 @@ main { animation: fadeIn 0.2s ease; }
 
   main { padding: 1rem 0.85rem calc(1rem + var(--bottom-nav-h)); }
 
-  /* Overview stats: 2x2 grid instead of 4-col flex */
+  /* Overview stats: grid that adapts to 5 items */
   .overview-stats {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
   }
-  .overview-stat { border-right: none; border-bottom: 1px solid var(--border); }
-  .overview-stat:nth-child(odd) { border-right: 1px solid var(--border); }
-  .overview-stat:nth-last-child(-n+2) { border-bottom: none; }
+  .overview-stat {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .overview-stat:nth-child(3n) { border-right: none; }
+  .overview-stat:nth-last-child(-n+2):nth-child(n+4) { border-bottom: none; }
+  .overview-stat:nth-child(5):last-child { border-right: none; }
 
   /* Selects: stack vertically */
   .select-group {

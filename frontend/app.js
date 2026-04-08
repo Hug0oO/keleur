@@ -500,6 +500,10 @@ async function viewOverview() {
           <div class="ov-value" style="color:${overview.avg_late_delay_seconds ? "var(--red)" : "var(--green)"}">${overview.avg_late_delay_seconds ? formatDelay(Math.round(overview.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
           <div class="ov-label">Quand en retard</div>
         </div>
+        <div class="overview-stat">
+          <div class="ov-value" style="color:${(overview.late_5min_percent || 0) <= 10 ? "var(--green)" : (overview.late_5min_percent || 0) <= 25 ? "var(--orange)" : "var(--red)"}">${(overview.late_5min_percent ?? 0).toFixed(0)}%</div>
+          <div class="ov-label">&gt; 5 min retard</div>
+        </div>
       </div>
 
       ${Object.entries(grouped)
