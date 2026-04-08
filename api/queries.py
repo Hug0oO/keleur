@@ -336,7 +336,8 @@ def get_departure_times(
             round(median(delay_seconds), 1) as median_delay,
             min(delay_seconds) as min_delay,
             max(delay_seconds) as max_delay,
-            count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct
+            count(CASE WHEN abs(delay_seconds) <= 60 THEN 1 END) * 100.0 / count(*) as on_time_pct,
+            round(avg(CASE WHEN delay_seconds >= 60 THEN delay_seconds END), 0) as avg_late_delay
         FROM delay_observations
         {where}
         GROUP BY strftime(scheduled_dep, '%H:%M')
@@ -353,6 +354,7 @@ def get_departure_times(
             "min_delay_seconds": r[4],
             "max_delay_seconds": r[5],
             "on_time_percent": round(r[6], 1),
+            "avg_late_delay_seconds": r[7],
         }
         for r in rows
     ]

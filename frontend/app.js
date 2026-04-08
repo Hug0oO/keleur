@@ -412,8 +412,8 @@ function renderDepartureList(departures, query) {
           <span class="dep-time-hour">${d.departure_time}</span>
           ${scoreBadge(d.on_time_percent)}
           <div class="dep-time-stats">
-            <span class="dep-time-ontime" style="color:${d.on_time_percent >= 70 ? "var(--green)" : d.on_time_percent >= 50 ? "var(--orange)" : "var(--red)"}">${d.on_time_percent.toFixed(0)}%</span>
-            <span class="dep-time-delay" style="color:${delayColorCSS(d.avg_delay_seconds)}">${formatDelayExact(d.avg_delay_seconds)}</span>
+            <span class="dep-time-ontime" style="color:${d.on_time_percent >= 70 ? "var(--green)" : d.on_time_percent >= 50 ? "var(--orange)" : "var(--red)"}">${d.on_time_percent.toFixed(0)}% \u00e0 l\u2019heure</span>
+            ${d.avg_late_delay_seconds ? `<span class="dep-time-delay" style="color:var(--red)">sinon ${formatDelay(Math.round(d.avg_late_delay_seconds), true)}</span>` : ""}
           </div>
           <span class="dep-time-count">${d.total_observations} pass.</span>
         </div>
