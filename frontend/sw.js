@@ -1,4 +1,4 @@
-const CACHE_NAME = "keleur-v3";
+const CACHE_NAME = "keleur-v4";
 const SHELL_ASSETS = ["/", "/style.css", "/app.js", "/manifest.json"];
 const API_CACHE = "keleur-api-v1";
 const API_MAX_AGE = 5 * 60 * 1000; // 5 min

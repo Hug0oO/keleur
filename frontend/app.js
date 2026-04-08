@@ -993,16 +993,23 @@ async function viewTrips() {
     ${trips
       .map((t, i) => {
         const s = allStats[i];
-        const delayStr = s && s.total_observations > 0 ? formatDelay(Math.round(s.avg_delay_seconds), true) : "\u2013";
-        const onTime = s && s.total_observations > 0 ? `${s.on_time_percent.toFixed(0)}%` : "\u2013";
+        const hasData = s && s.total_observations > 0;
+        const onTimePct = hasData ? s.on_time_percent.toFixed(0) : null;
+        const onTimeColor = hasData
+          ? (s.on_time_percent >= 70 ? "var(--green)" : s.on_time_percent >= 50 ? "var(--orange)" : "var(--red)")
+          : "var(--text-muted)";
+        const lateDelay = hasData && s.avg_late_delay_seconds
+          ? formatDelay(Math.round(s.avg_late_delay_seconds), true)
+          : null;
         return `
           <div class="trip-card">
             ${routeBadge(t.short_name, t.color)}
             <div class="trip-info">
               <div style="font-weight:600;font-size:0.9rem">${t.stop_name}</div>
               <div style="font-size:0.78rem;color:var(--text-muted)">
-                Moy. <span style="color:${delayColorCSS(s?.avg_delay_seconds)}">${delayStr}</span>
-                \u00b7 \u00c0 l\u2019heure ${onTime}
+                ${hasData
+                  ? `<span style="color:${onTimeColor}">${onTimePct}% \u00e0 l\u2019heure</span>${lateDelay ? ` \u00b7 sinon <span style="color:var(--red)">${lateDelay}</span>` : ""}`
+                  : "\u2013"}
               </div>
             </div>
             <div class="trip-actions">
