@@ -1037,7 +1037,7 @@ async function viewTrips() {
               </div>
             </div>
             <div class="trip-actions">
-              <a href="#/route/${encodeURIComponent(t.route_id)}" class="btn btn-sm btn-outline">Voir</a>
+              <a href="#/route/${encodeURIComponent(t.route_id)}?stop=${encodeURIComponent(t.stop_name || "")}${t.headsign ? `&headsign=${encodeURIComponent(t.headsign)}` : ""}" class="btn btn-sm btn-outline">Voir</a>
               <button class="btn btn-sm btn-danger" onclick="removeTrip(${i})">\u2715</button>
             </div>
           </div>
