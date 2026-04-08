@@ -461,6 +461,51 @@ def overview():
     }
 
 
+# ── Debug ─────────────────────────────────────────────────────────────
+
+@app.get("/api/debug/trip/{trip_id}")
+def debug_trip(trip_id: str):
+    """Inspect trip's static schedule and service_id activity."""
+    from datetime import datetime
+    today = datetime.now().strftime("%Y%m%d")
+    conn = get_conn()
+
+    trip_row = conn.execute(
+        "SELECT route_id, service_id, trip_headsign FROM trips WHERE trip_id = ?",
+        [trip_id],
+    ).fetchone()
+    if not trip_row:
+        return {"error": "trip not found in static GTFS"}
+
+    service_id = trip_row[1]
+    is_active = conn.execute(
+        "SELECT count(*) FROM calendar_dates WHERE service_id = ? AND date = ? AND exception_type = 1",
+        [service_id, today],
+    ).fetchone()[0] > 0
+
+    stop_times = conn.execute(
+        "SELECT stop_sequence, departure_time, stop_id FROM stop_times WHERE trip_id = ? ORDER BY stop_sequence",
+        [trip_id],
+    ).fetchall()
+
+    obs_count = conn.execute(
+        "SELECT count(*) FROM delay_observations WHERE trip_id = ?",
+        [trip_id],
+    ).fetchone()[0]
+
+    return {
+        "trip_id": trip_id,
+        "route_id": trip_row[0],
+        "service_id": service_id,
+        "headsign": trip_row[2],
+        "today": today,
+        "service_active_today": is_active,
+        "stop_times_count": len(stop_times),
+        "stop_times_sample": [{"seq": s[0], "dep": s[1], "stop_id": s[2]} for s in stop_times[:5]],
+        "observations_recorded": obs_count,
+    }
+
+
 # ── Frontend static files ─────────────────────────────────────────────
 
 @app.get("/")
