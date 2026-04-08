@@ -413,7 +413,7 @@ function renderDepartureList(departures, query) {
           ${scoreBadge(d.on_time_percent)}
           <div class="dep-time-stats">
             <span class="dep-time-ontime" style="color:${d.on_time_percent >= 70 ? "var(--green)" : d.on_time_percent >= 50 ? "var(--orange)" : "var(--red)"}">${d.on_time_percent.toFixed(0)}% \u00e0 l\u2019heure</span>
-            ${d.avg_late_delay_seconds ? `<span class="dep-time-delay" style="color:var(--red)">sinon ${formatDelay(Math.round(d.avg_late_delay_seconds), true)}</span>` : ""}
+            ${d.avg_late_delay_seconds ? `<span class="dep-time-delay" style="color:var(--red)">${formatDelay(Math.round(d.avg_late_delay_seconds), true)} quand en retard</span>` : ""}
           </div>
           <span class="dep-time-count">${d.total_observations} pass.</span>
         </div>
@@ -1008,7 +1008,7 @@ async function viewTrips() {
               <div style="font-weight:600;font-size:0.9rem">${t.stop_name}</div>
               <div style="font-size:0.78rem;color:var(--text-muted)">
                 ${hasData
-                  ? `<span style="color:${onTimeColor}">${onTimePct}% \u00e0 l\u2019heure</span>${lateDelay ? ` \u00b7 sinon <span style="color:var(--red)">${lateDelay}</span>` : ""}`
+                  ? `<span style="color:${onTimeColor}">${onTimePct}% \u00e0 l\u2019heure</span>${lateDelay ? ` \u00b7 <span style="color:var(--red)">${lateDelay}</span> quand en retard` : ""}`
                   : "\u2013"}
               </div>
             </div>
