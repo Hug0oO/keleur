@@ -701,6 +701,7 @@ async function viewRoute(routeId) {
         stop_id: selStop.value,
         stop_name: selStop.options[selStop.selectedIndex]?.text,
         direction_id: opt.dir,
+        headsign: opt.headsign,
       };
       const exists = trips.some(
         (t) => t.route_id === trip.route_id && t.stop_id === trip.stop_id && t.direction_id === trip.direction_id
@@ -982,10 +983,33 @@ async function viewTrips() {
     return;
   }
 
-  const statsPromises = trips.map((t) =>
-    api(`/stats?route_id=${encodeURIComponent(t.route_id)}&stop_id=${encodeURIComponent(t.stop_id)}&days=30`)
-      .catch(() => null)
-  );
+  // Migrate trips saved before headsign was tracked: stats were aggregating
+  // both directions, so the percentage didn't match the route page.
+  const toMigrate = trips.filter((t) => t.headsign === undefined && t.direction_id !== undefined);
+  if (toMigrate.length) {
+    const uniqueRoutes = [...new Set(toMigrate.map((t) => t.route_id))];
+    const dirsByRoute = {};
+    await Promise.all(
+      uniqueRoutes.map(async (rid) => {
+        try {
+          dirsByRoute[rid] = await api(`/routes/${encodeURIComponent(rid)}/directions`);
+        } catch {
+          dirsByRoute[rid] = [];
+        }
+      })
+    );
+    for (const t of toMigrate) {
+      const match = (dirsByRoute[t.route_id] || []).find((d) => d.direction_id === t.direction_id);
+      t.headsign = match ? match.headsign : null;
+    }
+    saveTrips(trips);
+  }
+
+  const statsPromises = trips.map((t) => {
+    const params = new URLSearchParams({ route_id: t.route_id, stop_id: t.stop_id, days: "30" });
+    if (t.headsign) params.set("headsign", t.headsign);
+    return api(`/stats?${params}`).catch(() => null);
+  });
   const allStats = await Promise.all(statsPromises);
 
   app().innerHTML = `
