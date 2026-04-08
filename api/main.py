@@ -493,6 +493,30 @@ def debug_trip(trip_id: str):
         [trip_id],
     ).fetchone()[0]
 
+    # Sample of actual observations stored
+    obs_sample = conn.execute(
+        """
+        SELECT observed_at, stop_id, stop_sequence, scheduled_dep, realtime_dep, delay_seconds
+        FROM delay_observations
+        WHERE trip_id = ?
+        ORDER BY observed_at DESC
+        LIMIT 10
+        """,
+        [trip_id],
+    ).fetchall()
+
+    # Specifically at CLD012
+    obs_at_cld = conn.execute(
+        """
+        SELECT observed_at, scheduled_dep, realtime_dep, delay_seconds
+        FROM delay_observations
+        WHERE trip_id = ? AND stop_id = 'CLD012'
+        ORDER BY observed_at DESC
+        LIMIT 5
+        """,
+        [trip_id],
+    ).fetchall()
+
     return {
         "trip_id": trip_id,
         "route_id": trip_row[0],
@@ -503,6 +527,26 @@ def debug_trip(trip_id: str):
         "stop_times_count": len(stop_times),
         "stop_times_sample": [{"seq": s[0], "dep": s[1], "stop_id": s[2]} for s in stop_times[:5]],
         "observations_recorded": obs_count,
+        "observations_sample": [
+            {
+                "observed_at": str(o[0]),
+                "stop_id": o[1],
+                "seq": o[2],
+                "scheduled_dep": str(o[3]),
+                "realtime_dep": str(o[4]),
+                "delay_seconds": o[5],
+            }
+            for o in obs_sample
+        ],
+        "observations_at_CLD012": [
+            {
+                "observed_at": str(o[0]),
+                "scheduled_dep": str(o[1]),
+                "realtime_dep": str(o[2]),
+                "delay_seconds": o[3],
+            }
+            for o in obs_at_cld
+        ],
     }
 
 
