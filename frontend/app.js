@@ -3,10 +3,51 @@
 const $ = (s) => document.querySelector(s);
 const app = () => $("#app");
 
+// ── Network state ─────────────────────────────────────────────
+
+let _networks = null;          // cached list from /api/networks
+const NETWORK_KEY = "keleur_network";
+const DEFAULT_NETWORK = "ilevia";
+
+function currentNetwork() {
+  return localStorage.getItem(NETWORK_KEY) || DEFAULT_NETWORK;
+}
+
+function setNetwork(id) {
+  localStorage.setItem(NETWORK_KEY, id);
+  updateNetworkSwitcherLabel();
+  // Force a route re-render so the new network's data is loaded
+  route();
+}
+
+function getNetworkInfo(id) {
+  if (!_networks) return null;
+  return _networks.find((n) => n.id === id) || null;
+}
+
+async function loadNetworks() {
+  if (_networks) return _networks;
+  try {
+    const resp = await fetch("/api/networks");
+    _networks = await resp.json();
+  } catch {
+    _networks = [];
+  }
+  return _networks;
+}
+
 // ── API helper ────────────────────────────────────────────────
 
 async function api(path) {
-  const resp = await fetch(`/api${path}`);
+  // Absolute API paths (start with /) bypass network scoping
+  // Network-scoped paths: just pass "/routes", "/stats", etc.
+  let fullPath;
+  if (path.startsWith("/networks/") || path.startsWith("/health") || path.startsWith("/_")) {
+    fullPath = `/api${path}`;
+  } else {
+    fullPath = `/api/networks/${currentNetwork()}${path}`;
+  }
+  const resp = await fetch(fullPath);
   if (!resp.ok) throw new Error(`API ${resp.status}`);
   return resp.json();
 }
@@ -21,7 +62,6 @@ function route() {
     a.classList.toggle("active", a.getAttribute("href") === hash.split("/").slice(0, 2).join("/") || (hash === "#/" && a.getAttribute("href") === "#/"));
   });
 
-  // Bottom nav active state
   const navMap = { "": "home", "search": "search", "rankings": "rankings", "trips": "trips", "about": "about" };
   const activeNav = navMap[parts[0]] || "";
   document.querySelectorAll("#bottom-nav a").forEach((a) => {
@@ -213,13 +253,6 @@ function exportJSON(data, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-function renderExportRow(data, name) {
-  return `<div class="export-row">
-    <button class="btn btn-outline btn-sm" onclick='exportCSV(${JSON.stringify(data).replace(/'/g, "\\u0027")}, "${name}.csv")'>CSV</button>
-    <button class="btn btn-outline btn-sm" onclick='exportJSON(${JSON.stringify(data).replace(/'/g, "\\u0027")}, "${name}.json")'>JSON</button>
-  </div>`;
-}
-
 // ── Share ────────────────────────────────────────────────
 
 function shareStats(title, text) {
@@ -293,7 +326,7 @@ function renderFilterPanel(id) {
           </div>
         </div>
         <div class="filter-section">
-          <div class="filter-section-label">Vacances scolaires (Zone B)</div>
+          <div class="filter-section-label">Vacances scolaires</div>
           <div class="pill-group" data-filter="holidays">
             <button class="pill active" data-val="all">Toutes p\u00e9riodes</button>
             <button class="pill" data-val="exclude">Hors vacances</button>
@@ -408,7 +441,7 @@ function renderDepartureList(departures, query) {
   container.innerHTML = `
     <div class="dep-time-list">
       ${shown.map((d) => `
-        <div class="dep-time-item">
+        <div class="dep-time-item" data-departure="${d.departure_time}">
           <span class="dep-time-hour">${d.departure_time}</span>
           ${scoreBadge(d.on_time_percent)}
           <div class="dep-time-stats">
@@ -453,12 +486,32 @@ function renderStatCards(stats) {
 }
 
 // ── Trips (localStorage) ─────────────────────────────────────
+//
+// Trips are scoped per network. Format: { ilevia: [...trips], tan: [...trips] }
+// Older versions stored a flat list — migrated transparently below.
+
+function getTripsAll() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("keleur_trips") || "{}");
+    if (Array.isArray(raw)) {
+      // Legacy flat array — assume it was Ilévia
+      const migrated = { ilevia: raw };
+      localStorage.setItem("keleur_trips", JSON.stringify(migrated));
+      return migrated;
+    }
+    return raw || {};
+  } catch { return {}; }
+}
+function saveTripsAll(all) { localStorage.setItem("keleur_trips", JSON.stringify(all)); }
 
 function getTrips() {
-  try { return JSON.parse(localStorage.getItem("keleur_trips") || "[]"); }
-  catch { return []; }
+  return getTripsAll()[currentNetwork()] || [];
 }
-function saveTrips(trips) { localStorage.setItem("keleur_trips", JSON.stringify(trips)); }
+function saveTrips(trips) {
+  const all = getTripsAll();
+  all[currentNetwork()] = trips;
+  saveTripsAll(all);
+}
 
 // ── View: Overview ───────────────────────────────────────────
 
@@ -466,9 +519,29 @@ async function viewOverview() {
   app().innerHTML = skeleton("page");
 
   try {
-    const [overview, routes] = await Promise.all([api("/overview"), api("/routes")]);
+    const [overview, routes, anomalies] = await Promise.all([
+      api("/overview"),
+      api("/routes"),
+      api("/anomalies").catch(() => []),
+    ]);
 
-    const routeTypes = { 0: "Tramway", 1: "M\u00e9tro", 3: "Bus" };
+    const net = getNetworkInfo(currentNetwork());
+    const cityLabel = net ? `${net.city}` : "";
+
+    if (overview.total_observations === 0) {
+      app().innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">\ud83d\udce1</div>
+          <div class="empty-text">
+            Aucune donn\u00e9e pour ${net ? net.name : "ce r\u00e9seau"} pour le moment.<br>
+            La collecte vient peut-\u00eatre de d\u00e9marrer\u202f\u2014 revenez dans quelques heures.
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const routeTypes = { 0: "Tramway", 1: "M\u00e9tro", 2: "Train", 3: "Bus" };
     const grouped = {};
     routes.forEach((r) => {
       const type = routeTypes[r.route_type] || "Autre";
@@ -482,6 +555,8 @@ async function viewOverview() {
         <input type="text" placeholder="Rechercher un arr\u00eat\u2026" id="home-search"
           onclick="location.hash='#/search';return false" readonly>
       </div>
+
+      ${cityLabel ? `<div class="city-label">${cityLabel} \u2014 ${net.operator}</div>` : ""}
 
       <div class="overview-stats">
         <div class="overview-stat">
@@ -505,6 +580,22 @@ async function viewOverview() {
           <div class="ov-label">&gt; 5 min retard</div>
         </div>
       </div>
+
+      ${anomalies && anomalies.length ? `
+        <h2 class="section-title">\u26a0\ufe0f Lignes en difficult\u00e9 aujourd\u2019hui</h2>
+        <div class="anomaly-list">
+          ${anomalies.slice(0, 5).map((a) => `
+            <a href="#/route-stats/${encodeURIComponent(a.route_id)}" class="anomaly-item">
+              ${routeBadge(a.short_name, a.color)}
+              <div class="anomaly-info">
+                <div class="anomaly-name">${a.long_name}</div>
+                <div class="anomaly-meta">${a.today_on_time_percent}% aujourd\u2019hui vs ${a.baseline_on_time_percent}% habituellement \u00b7 ${a.today_observations} pass.</div>
+              </div>
+              <div class="anomaly-drop">\u2212${a.punctuality_drop} pts</div>
+            </a>
+          `).join("")}
+        </div>
+      ` : ""}
 
       ${Object.entries(grouped)
         .map(([type, list]) => `
@@ -665,6 +756,7 @@ async function viewRoute(routeId) {
           <div class="card">
             <input type="text" id="dep-time-search" placeholder="Tapez une heure, ex : 07:30" class="input-search-time">
             <div id="dep-time-results">${loading()}</div>
+            <div id="recommend-slot"></div>
           </div>
 
           ${worst.length ? `
@@ -678,8 +770,12 @@ async function viewRoute(routeId) {
 
         $("#dep-time-search").addEventListener("input", () => {
           renderDepartureList(depData, $("#dep-time-search").value);
+          // Auto-fetch recommendations once user types HH:MM
+          const v = $("#dep-time-search").value.trim();
+          if (/^\d{2}:\d{2}$/.test(v)) {
+            loadRecommendations(routeId, stopId, currentHeadsign, v);
+          }
         });
-
       } catch (err) {
         $("#route-stats").innerHTML = `<div class="empty">Erreur : ${err.message}</div>`;
       }
@@ -694,6 +790,7 @@ async function viewRoute(routeId) {
       const opt = dirOptions[idx];
       const trips = getTrips();
       const trip = {
+        network_id: currentNetwork(),
         route_id: routeId,
         short_name: routeInfo.short_name,
         long_name: routeInfo.long_name,
@@ -714,6 +811,57 @@ async function viewRoute(routeId) {
     loadStats();
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-text">Erreur : ${err.message}</div></div>`;
+  }
+}
+
+async function loadRecommendations(routeId, stopId, headsign, departureTime) {
+  const slot = document.getElementById("recommend-slot");
+  if (!slot) return;
+  try {
+    let qs = `route_id=${encodeURIComponent(routeId)}&stop_id=${encodeURIComponent(stopId)}&departure_time=${encodeURIComponent(departureTime)}`;
+    if (headsign) qs += `&headsign=${encodeURIComponent(headsign)}`;
+    const recs = await api(`/recommendations?${qs}`);
+    if (!recs || recs.length < 2) {
+      slot.innerHTML = "";
+      return;
+    }
+    const best = recs[0];
+    if (best.departure_time === departureTime) {
+      // Already the best — don't suggest the same time
+      const others = recs.slice(1, 4);
+      if (!others.length) { slot.innerHTML = ""; return; }
+      slot.innerHTML = `
+        <div class="recommend-card">
+          <div class="recommend-card-title">\ud83d\udca1 Alternatives proches</div>
+          <div class="recommend-list">
+            ${others.map((r) => `
+              <div class="recommend-item">
+                <span class="recommend-time">${r.departure_time}</span>
+                <span class="recommend-pct">${r.on_time_percent}% \u00e0 l\u2019heure</span>
+                <span class="recommend-offset">${r.offset_minutes >= 0 ? "+" : ""}${r.offset_minutes} min</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    } else {
+      slot.innerHTML = `
+        <div class="recommend-card">
+          <div class="recommend-card-title">\ud83d\udca1 Plus fiable autour de ${departureTime}</div>
+          <div class="recommend-list">
+            ${recs.slice(0, 3).map((r) => `
+              <div class="recommend-item">
+                <span class="recommend-time">${r.departure_time}</span>
+                <span class="recommend-pct">${r.on_time_percent}% \u00e0 l\u2019heure</span>
+                <span class="recommend-offset">${r.offset_minutes >= 0 ? "+" : ""}${r.offset_minutes} min</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+  } catch {
+    slot.innerHTML = "";
   }
 }
 
@@ -968,14 +1116,15 @@ async function viewRankings() {
 
 async function viewTrips() {
   const trips = getTrips();
+  const net = getNetworkInfo(currentNetwork());
 
   if (!trips.length) {
     app().innerHTML = `
-      <h2 class="section-title" style="margin-top:0">Mes trajets</h2>
+      <h2 class="section-title" style="margin-top:0">Mes trajets ${net ? `\u00b7 ${net.city}` : ""}</h2>
       <div class="empty">
         <div class="empty-icon">\ud83d\ude8f</div>
         <div class="empty-text">
-          Aucun trajet sauvegard\u00e9.<br>
+          Aucun trajet sauvegard\u00e9 pour ce r\u00e9seau.<br>
           Allez sur une ligne, choisissez un arr\u00eat et cliquez \u00ab\u202fSauvegarder\u202f\u00bb.
         </div>
       </div>
@@ -1013,7 +1162,7 @@ async function viewTrips() {
   const allStats = await Promise.all(statsPromises);
 
   app().innerHTML = `
-    <h2 class="section-title" style="margin-top:0">Mes trajets</h2>
+    <h2 class="section-title" style="margin-top:0">Mes trajets ${net ? `\u00b7 ${net.city}` : ""}</h2>
     ${trips
       .map((t, i) => {
         const s = allStats[i];
@@ -1115,10 +1264,6 @@ async function viewCompare() {
               </tbody>
             </table>
           </div>
-
-          <div class="export-row" style="margin-top:0.5rem">
-            <button class="btn btn-outline btn-sm" onclick='exportCSV(${JSON.stringify(stats.map((s, i) => ({ ligne: infos[i].short_name, on_time_pct: s.on_time_percent, avg_delay: s.avg_delay_seconds, late_5min_pct: s.late_5min_percent, passages: s.total_observations }))).replace(/'/g, "\\u0027")}, "comparaison.csv")'>Exporter CSV</button>
-          </div>
         `;
       } catch (err) {
         document.getElementById("cmp-results").innerHTML = `<div class="empty">Erreur : ${err.message}</div>`;
@@ -1157,26 +1302,39 @@ async function viewAbout() {
     `;
   } catch {}
 
+  const networksList = (_networks || []).filter((n) => n.enabled).map((n) => n.city).join(", ");
+  const allCities = (_networks || []).map((n) => n.city).join(", ");
+
   app().innerHTML = `
     <a href="javascript:void(0)" onclick="history.back()" class="back-link">\u2190 Retour</a>
 
     <div class="about-hero">
       <h1>Comment fonctionne Keleur\u202f?</h1>
-      <p class="about-hero-sub">Transparence totale sur nos donn\u00e9es et notre m\u00e9thode de calcul.</p>
+      <p class="about-hero-sub">Statistiques ind\u00e9pendantes de ponctualit\u00e9 pour les transports en commun de plusieurs m\u00e9tropoles fran\u00e7aises.</p>
     </div>
 
     ${statsHtml}
+
+    <div class="about-section">
+      <h2 class="about-section-title">R\u00e9seaux suivis</h2>
+      <div class="about-card-block">
+        <p>Keleur agr\u00e8ge les donn\u00e9es publiques de plusieurs r\u00e9seaux de transport en commun fran\u00e7ais\u202f: <strong>${allCities || "10 m\u00e9tropoles"}</strong>.</p>
+        ${networksList ? `<p>Les r\u00e9seaux actuellement <strong>actifs</strong> et collect\u00e9s en temps r\u00e9el\u202f: ${networksList}.</p>` : ""}
+        <p>Les autres r\u00e9seaux sont en cours d\u2019int\u00e9gration\u202f: leurs flux GTFS-RT doivent \u00eatre v\u00e9rifi\u00e9s avant activation.</p>
+        <p>Vous pouvez changer de r\u00e9seau \u00e0 tout moment via le s\u00e9lecteur en haut de l\u2019\u00e9cran.</p>
+      </div>
+    </div>
 
     <div class="about-section">
       <div class="about-step">
         <div class="about-step-num">1</div>
         <div class="about-step-content">
           <h2>On r\u00e9cup\u00e8re les horaires officiels</h2>
-          <p>Il\u00e9via publie les horaires th\u00e9oriques de toutes ses lignes (bus, tram, m\u00e9tro) dans un format standardis\u00e9 appel\u00e9 <strong>GTFS</strong>. Ce fichier contient chaque arr\u00eat, chaque ligne, et chaque heure de passage pr\u00e9vue.</p>
-          <p>Keleur t\u00e9l\u00e9charge ces horaires automatiquement chaque jour.</p>
+          <p>Chaque op\u00e9rateur (Keolis, RATP Dev, Transdev, r\u00e9gies\u2026) publie les horaires th\u00e9oriques de toutes ses lignes (bus, tram, m\u00e9tro) dans un format standardis\u00e9 appel\u00e9 <strong>GTFS</strong>. Ce fichier contient chaque arr\u00eat, chaque ligne, et chaque heure de passage pr\u00e9vue.</p>
+          <p>Keleur t\u00e9l\u00e9charge ces horaires automatiquement chaque jour, pour chaque r\u00e9seau suivi.</p>
           <details class="about-details">
             <summary>D\u00e9tails techniques</summary>
-            <p>Le fichier GTFS statique est publi\u00e9 par Il\u00e9via sur <strong>transport.data.gouv.fr</strong> (licence ouverte). Il contient les tables <code>routes</code>, <code>stops</code>, <code>trips</code> et <code>stop_times</code>. Keleur v\u00e9rifie le hash SHA-256 pour ne r\u00e9importer que si le fichier a chang\u00e9.</p>
+            <p>Les fichiers GTFS statiques sont publi\u00e9s sur <strong>transport.data.gouv.fr</strong> (licence ouverte) ou directement par les op\u00e9rateurs. Ils contiennent les tables <code>routes</code>, <code>stops</code>, <code>trips</code>, <code>stop_times</code> et <code>calendar_dates</code>. Keleur v\u00e9rifie le hash SHA-256 pour ne r\u00e9importer que si le fichier a chang\u00e9.</p>
           </details>
         </div>
       </div>
@@ -1185,11 +1343,11 @@ async function viewAbout() {
         <div class="about-step-num">2</div>
         <div class="about-step-content">
           <h2>On capte la position en temps r\u00e9el</h2>
-          <p>En parall\u00e8le, Il\u00e9via diffuse en continu l\u2019\u00e9tat de chaque v\u00e9hicule en circulation\u202f: est-il en avance\u202f? En retard\u202f? De combien\u202f?</p>
-          <p>Keleur interroge ce flux <strong>toutes les 30 secondes</strong>, 24 heures sur 24, 7 jours sur 7.</p>
+          <p>En parall\u00e8le, chaque r\u00e9seau diffuse en continu l\u2019\u00e9tat de chaque v\u00e9hicule en circulation\u202f: est-il en avance\u202f? En retard\u202f? De combien\u202f?</p>
+          <p>Keleur interroge ces flux <strong>toutes les 30 secondes</strong>, 24 heures sur 24, 7 jours sur 7.</p>
           <details class="about-details">
             <summary>D\u00e9tails techniques</summary>
-            <p>Le flux temps r\u00e9el est au format <strong>GTFS-RT</strong> (Protocol Buffers). Keleur consomme les entit\u00e9s <code>TripUpdate</code> qui fournissent, pour chaque trip en cours, l\u2019heure de d\u00e9part estim\u00e9e \u00e0 chaque arr\u00eat (<code>StopTimeUpdate.departure</code>). Le flux est proxifi\u00e9 par transport.data.gouv.fr.</p>
+            <p>Les flux temps r\u00e9el sont au format <strong>GTFS-RT</strong> (Protocol Buffers). Keleur consomme les entit\u00e9s <code>TripUpdate</code> qui fournissent, pour chaque trip en cours, l\u2019heure de d\u00e9part estim\u00e9e \u00e0 chaque arr\u00eat (<code>StopTimeUpdate.departure</code>). Un thread de collecte tourne par r\u00e9seau, en parall\u00e8le.</p>
           </details>
         </div>
       </div>
@@ -1204,15 +1362,15 @@ async function viewAbout() {
           </div>
           <div class="about-example">
             <div class="about-example-title">Exemple concret</div>
-            <p>Le bus L1 est pr\u00e9vu \u00e0 l\u2019arr\u00eat R\u00e9publique \u00e0 <strong>08h15</strong>.<br>
-            Il\u00e9via signale qu\u2019il passera en r\u00e9alit\u00e9 \u00e0 <strong>08h19</strong>.</p>
+            <p>Un bus est pr\u00e9vu \u00e0 son arr\u00eat \u00e0 <strong>08h15</strong>.<br>
+            Le flux temps r\u00e9el indique qu\u2019il passera en r\u00e9alit\u00e9 \u00e0 <strong>08h19</strong>.</p>
             <p>Keleur enregistre\u202f: <strong>08h19 \u2212 08h15 = +4 minutes de retard</strong>.</p>
             <p>Si le m\u00eame bus \u00e9tait pass\u00e9 \u00e0 08h14, Keleur aurait enregistr\u00e9 <strong>\u22121 minute</strong> (1 minute d\u2019avance).</p>
           </div>
           <p>Si l\u2019\u00e9cart est <strong>inf\u00e9rieur \u00e0 1 minute</strong> (en avance ou en retard), on consid\u00e8re que le bus est <strong>\u00e0 l\u2019heure</strong>. Au-del\u00e0, il est compt\u00e9 comme en retard.</p>
           <details class="about-details">
             <summary>D\u00e9tails techniques</summary>
-            <p>Le calcul est : <code>delay = realtime_dep \u2212 scheduled_dep</code> (en secondes). Les observations avec un d\u00e9calage sup\u00e9rieur \u00e0 1 heure sont \u00e9cart\u00e9es (probable d\u00e9calage de date). La d\u00e9duplication est faite sur le tuple <code>(trip_id, stop_id, scheduled_dep)</code> pour \u00e9viter les doublons li\u00e9s au polling fr\u00e9quent.</p>
+            <p>Le calcul est : <code>delay = realtime_dep \u2212 scheduled_dep</code> (en secondes). Les observations avec un d\u00e9calage sup\u00e9rieur \u00e0 1 heure sont \u00e9cart\u00e9es (probable d\u00e9calage de date). La d\u00e9duplication est faite sur le tuple <code>(network_id, trip_id, stop_id, scheduled_dep)</code> pour \u00e9viter les doublons li\u00e9s au polling fr\u00e9quent.</p>
           </details>
         </div>
       </div>
@@ -1221,11 +1379,11 @@ async function viewAbout() {
         <div class="about-step-num">4</div>
         <div class="about-step-content">
           <h2>On agr\u00e8ge les statistiques</h2>
-          <p>Toutes ces mesures individuelles sont stock\u00e9es et agr\u00e9g\u00e9es pour produire des statistiques fiables\u202f: taux de ponctualit\u00e9, retard moyen, pires horaires, comparaisons par jour ou par heure.</p>
+          <p>Toutes ces mesures individuelles sont stock\u00e9es et agr\u00e9g\u00e9es pour produire des statistiques fiables\u202f: taux de ponctualit\u00e9, retard moyen, pires horaires, comparaisons par jour ou par heure, anomalies du jour, suggestions d\u2019horaires alternatifs.</p>
           <p>Plus on accumule de mesures, plus les r\u00e9sultats sont repr\u00e9sentatifs.</p>
           <details class="about-details">
             <summary>D\u00e9tails techniques</summary>
-            <p>Les donn\u00e9es sont stock\u00e9es dans <strong>DuckDB</strong>, une base de donn\u00e9es analytique colonnaire optimis\u00e9e pour les agr\u00e9gations. Les requ\u00eates utilisent <code>avg()</code>, <code>median()</code>, <code>stddev()</code> et des percentiles. Les filtres disponibles\u202f: p\u00e9riode, jours de la semaine, plage horaire, vacances scolaires (zone B).</p>
+            <p>Les donn\u00e9es sont stock\u00e9es dans <strong>DuckDB</strong>, une base de donn\u00e9es analytique colonnaire optimis\u00e9e pour les agr\u00e9gations. Les requ\u00eates utilisent <code>avg()</code>, <code>median()</code>, <code>stddev()</code> et des percentiles. Toutes les tables sont scind\u00e9es par <code>network_id</code>. Filtres disponibles\u202f: p\u00e9riode, jours de la semaine, plage horaire, vacances scolaires (zone A/B/C selon le r\u00e9seau).</p>
           </details>
         </div>
       </div>
@@ -1234,7 +1392,7 @@ async function viewAbout() {
     <div class="about-section">
       <h2 class="about-section-title">Ce que \u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb veut dire</h2>
       <div class="about-card-block">
-        <p>Un bus ou tram est consid\u00e9r\u00e9 <strong>\u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb</strong> si son \u00e9cart avec l\u2019horaire pr\u00e9vu est <strong>inf\u00e9rieur \u00e0 1 minute</strong> (en avance ou en retard).</p>
+        <p>Un v\u00e9hicule est consid\u00e9r\u00e9 <strong>\u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb</strong> si son \u00e9cart avec l\u2019horaire pr\u00e9vu est <strong>inf\u00e9rieur \u00e0 1 minute</strong> (en avance ou en retard).</p>
         <p>C\u2019est un seuil strict. Beaucoup d\u2019op\u00e9rateurs consid\u00e8rent un bus \u00ab\u202f\u00e0 l\u2019heure\u202f\u00bb jusqu\u2019\u00e0 5 minutes de retard. Keleur fait le choix d\u2019un crit\u00e8re exigeant, plus proche du ressenti des usagers.</p>
       </div>
     </div>
@@ -1242,8 +1400,8 @@ async function viewAbout() {
     <div class="about-section">
       <h2 class="about-section-title">Sources et transparence</h2>
       <div class="about-card-block">
-        <p>Toutes les donn\u00e9es utilis\u00e9es sont <strong>publiques et ouvertes</strong>, publi\u00e9es par Il\u00e9via / la M\u00e9tropole Europ\u00e9enne de Lille sur <strong>transport.data.gouv.fr</strong> sous licence ouverte.</p>
-        <p>Keleur n\u2019est pas affili\u00e9 \u00e0 Il\u00e9via ni \u00e0 Keolis. C\u2019est un projet ind\u00e9pendant qui collecte, compare et agr\u00e8ge ces donn\u00e9es publiques pour les rendre lisibles.</p>
+        <p>Toutes les donn\u00e9es utilis\u00e9es sont <strong>publiques et ouvertes</strong>, publi\u00e9es par les op\u00e9rateurs et les autorit\u00e9s organisatrices sur <strong>transport.data.gouv.fr</strong> sous licence ouverte.</p>
+        <p>Keleur n\u2019est affili\u00e9 \u00e0 <strong>aucun op\u00e9rateur</strong> ni \u00e0 aucune autorit\u00e9 organisatrice. C\u2019est un projet ind\u00e9pendant qui collecte, compare et agr\u00e8ge ces donn\u00e9es publiques pour les rendre lisibles aux usagers.</p>
       </div>
     </div>
 
@@ -1251,13 +1409,62 @@ async function viewAbout() {
       <h2 class="about-section-title">Limites</h2>
       <div class="about-card-block">
         <ul class="about-list">
-          <li><strong>D\u00e9pendance au flux Il\u00e9via</strong> \u2014 si le flux temps r\u00e9el est interrompu ou erron\u00e9, les mesures sont impact\u00e9es.</li>
-          <li><strong>Pas de donn\u00e9es avant le lancement</strong> \u2014 les statistiques d\u00e9marrent \u00e0 la date de mise en service de Keleur.</li>
-          <li><strong>M\u00e9tro non couvert</strong> \u2014 le m\u00e9tro automatique de Lille n\u2019est g\u00e9n\u00e9ralement pas inclus dans le flux GTFS-RT.</li>
+          <li><strong>D\u00e9pendance aux flux des op\u00e9rateurs</strong> \u2014 si un flux temps r\u00e9el est interrompu ou erron\u00e9, les mesures de ce r\u00e9seau sont impact\u00e9es.</li>
+          <li><strong>Pas de donn\u00e9es avant le lancement</strong> \u2014 les statistiques d\u00e9marrent \u00e0 la date de mise en service de Keleur pour chaque r\u00e9seau.</li>
+          <li><strong>M\u00e9tro souvent non couvert</strong> \u2014 les m\u00e9tros automatiques (Lille, Lyon\u2026) ne sont g\u00e9n\u00e9ralement pas inclus dans les flux GTFS-RT.</li>
+          <li><strong>Qualit\u00e9 variable selon les r\u00e9seaux</strong> \u2014 certains op\u00e9rateurs publient des donn\u00e9es plus pr\u00e9cises et r\u00e9guli\u00e8res que d\u2019autres.</li>
         </ul>
       </div>
     </div>
   `;
+}
+
+// ── Network switcher ─────────────────────────────────────────
+
+function updateNetworkSwitcherLabel() {
+  const btn = document.getElementById("network-switcher");
+  if (!btn) return;
+  const cur = currentNetwork();
+  const info = getNetworkInfo(cur);
+  const label = btn.querySelector(".network-switcher-city");
+  if (label) label.textContent = info ? info.city : cur;
+}
+
+function openNetworkPicker() {
+  if (!_networks) return;
+  const overlay = document.createElement("div");
+  overlay.className = "network-overlay";
+  overlay.innerHTML = `
+    <div class="network-modal">
+      <h3>Choisir un r\u00e9seau</h3>
+      <div class="network-modal-list">
+        ${_networks.map((n) => `
+          <button class="network-option ${n.id === currentNetwork() ? "active" : ""}" data-id="${n.id}" ${n.enabled ? "" : "disabled"}>
+            <span class="network-option-dot" style="background:#${n.color}"></span>
+            <span class="network-option-text">
+              <span class="network-option-city">${n.city}</span>
+              <span class="network-option-name">${n.name} \u00b7 ${n.operator}</span>
+              ${n.enabled ? "" : "<span class=\"network-option-soon\">Bient\u00f4t\u2026</span>"}
+            </span>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelectorAll(".network-option").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      const id = btn.dataset.id;
+      overlay.remove();
+      if (id !== currentNetwork()) {
+        // Reset to home view when changing network — keeps things simple
+        location.hash = "#/";
+        setNetwork(id);
+      }
+    });
+  });
 }
 
 // ── Pull-to-refresh ─────────────────────────────────────────
@@ -1341,4 +1548,19 @@ if ("serviceWorker" in navigator) {
 
 // ── Init ─────────────────────────────────────────────────────
 
-route();
+(async function init() {
+  await loadNetworks();
+  // If saved network is no longer enabled, fall back to first enabled
+  const cur = currentNetwork();
+  const info = getNetworkInfo(cur);
+  if (info && !info.enabled) {
+    const firstEnabled = _networks.find((n) => n.enabled);
+    if (firstEnabled) localStorage.setItem(NETWORK_KEY, firstEnabled.id);
+  }
+  updateNetworkSwitcherLabel();
+
+  const switcherBtn = document.getElementById("network-switcher");
+  if (switcherBtn) switcherBtn.addEventListener("click", openNetworkPicker);
+
+  route();
+})();

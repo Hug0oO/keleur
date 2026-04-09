@@ -1,11 +1,11 @@
 {
-  "name": "Keleur - Ponctualit\u00e9 transports Lille",
+  "name": "Keleur — Ponctualit\u00e9 des transports en France",
   "short_name": "Keleur",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
   "theme_color": "#1a1a2e",
-  "description": "Statistiques de ponctualit\u00e9 des transports en commun Il\u00e9via Lille",
+  "description": "Statistiques ind\u00e9pendantes de ponctualit\u00e9 des transports en commun (bus, tram, m\u00e9tro) en France.",
   "icons": [
     {
       "src": "/icon.svg",

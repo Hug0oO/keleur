@@ -5,6 +5,7 @@ from urllib.request import Request, urlopen
 from google.transit import gtfs_realtime_pb2
 
 from . import config
+from .networks import Network
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,9 @@ class FeedSnapshot:
     stop_updates: list[StopUpdate]
 
 
-def fetch() -> FeedSnapshot:
-    """Fetch and parse GTFS-RT feed. Raises on network/parse errors."""
-    req = Request(config.GTFS_RT_URL)
+def fetch(network: Network) -> FeedSnapshot:
+    """Fetch and parse a network's GTFS-RT feed. Raises on network/parse errors."""
+    req = Request(network.gtfs_rt_url)
     req.add_header("User-Agent", "Keleur/1.0 (transport data collector)")
 
     with urlopen(req, timeout=config.REQUEST_TIMEOUT_SECONDS) as resp:
@@ -46,7 +47,7 @@ def fetch() -> FeedSnapshot:
         direction_id = tu.trip.direction_id
 
         for stu in tu.stop_time_update:
-            # Use departure time (arrival is not provided by Ilévia)
+            # Use departure time (some feeds omit arrival)
             if not stu.HasField("departure") or stu.departure.time == 0:
                 continue
             updates.append(
@@ -61,7 +62,8 @@ def fetch() -> FeedSnapshot:
             )
 
     logger.debug(
-        "Fetched feed ts=%d: %d entities, %d stop_updates",
+        "[%s] Fetched feed ts=%d: %d entities, %d stop_updates",
+        network.id,
         feed.header.timestamp,
         len(feed.entity),
         len(updates),

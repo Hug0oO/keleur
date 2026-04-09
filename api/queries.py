@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 import duckdb
 
+from collector import networks
 from .holidays import holiday_clause
 
 # Day names for output
@@ -20,6 +21,7 @@ _DAY_NAMES = {
 
 @dataclass
 class FilterParams:
+    network_id: str
     route_id: str
     stop_id: str | None = None
     headsign: str | None = None
@@ -41,21 +43,24 @@ def _build_filters(
     include_stop: if False, skip the stop_id filter (for route-level queries).
     include_days_of_week: if False, skip days_of_week filter (for by-day grouping).
     """
-    clauses = ["route_id = ?"]
-    params: list = [f.route_id]
+    clauses = ["network_id = ?", "route_id = ?"]
+    params: list = [f.network_id, f.route_id]
 
     if include_stop and f.stop_id:
         clauses.append(
             "stop_id IN (SELECT s2.stop_id FROM stops s2 "
-            "WHERE s2.stop_name = (SELECT s1.stop_name FROM stops s1 WHERE s1.stop_id = ?))"
+            "WHERE s2.network_id = ? "
+            "AND s2.stop_name = (SELECT s1.stop_name FROM stops s1 "
+            "WHERE s1.network_id = ? AND s1.stop_id = ?))"
         )
-        params.append(f.stop_id)
+        params.extend([f.network_id, f.network_id, f.stop_id])
 
     if f.headsign:
         clauses.append(
-            "trip_id IN (SELECT t.trip_id FROM trips t WHERE t.trip_headsign = ?)"
+            "trip_id IN (SELECT t.trip_id FROM trips t "
+            "WHERE t.network_id = ? AND t.trip_headsign = ?)"
         )
-        params.append(f.headsign)
+        params.extend([f.network_id, f.headsign])
 
     clauses.append("observed_at >= current_date - INTERVAL (?) DAY")
     params.append(f.days)
@@ -75,8 +80,10 @@ def _build_filters(
 
     where = " AND ".join(clauses)
 
-    # Holiday clause is inlined SQL (no params)
-    hol = holiday_clause(f.holidays)
+    # Holiday clause is inlined SQL (no params); zone depends on the network
+    net = networks.get(f.network_id)
+    zone = net.school_zone if net else "B"
+    hol = holiday_clause(f.holidays, zone)
     if hol:
         where += " " + hol
 

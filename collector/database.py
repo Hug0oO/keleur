@@ -12,12 +12,14 @@ def get_connection() -> duckdb.DuckDBPyConnection:
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(config.DB_PATH))
     _init_schema(conn)
+    _migrate_add_network_id(conn)
     return conn
 
 
 def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delay_observations (
+            network_id      VARCHAR,
             observed_at     TIMESTAMP,
             trip_id         VARCHAR,
             route_id        VARCHAR,
@@ -33,25 +35,30 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS routes (
-            route_id        VARCHAR PRIMARY KEY,
+            network_id      VARCHAR,
+            route_id        VARCHAR,
             short_name      VARCHAR,
             long_name       VARCHAR,
             route_type      SMALLINT,
-            color           VARCHAR
+            color           VARCHAR,
+            PRIMARY KEY (network_id, route_id)
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS stops (
-            stop_id         VARCHAR PRIMARY KEY,
+            network_id      VARCHAR,
+            stop_id         VARCHAR,
             stop_name       VARCHAR,
             lat             DOUBLE,
-            lon             DOUBLE
+            lon             DOUBLE,
+            PRIMARY KEY (network_id, stop_id)
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS stop_times (
+            network_id      VARCHAR,
             trip_id         VARCHAR,
             stop_id         VARCHAR,
             stop_sequence   INTEGER,
@@ -62,16 +69,19 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS trips (
-            trip_id         VARCHAR PRIMARY KEY,
+            network_id      VARCHAR,
+            trip_id         VARCHAR,
             route_id        VARCHAR,
             service_id      VARCHAR,
             trip_headsign   VARCHAR,
-            direction_id    SMALLINT
+            direction_id    SMALLINT,
+            PRIMARY KEY (network_id, trip_id)
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS calendar_dates (
+            network_id      VARCHAR,
             service_id      VARCHAR,
             date            VARCHAR,
             exception_type  SMALLINT
@@ -80,90 +90,142 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gtfs_meta (
-            key             VARCHAR PRIMARY KEY,
-            value           VARCHAR
+            network_id      VARCHAR,
+            key             VARCHAR,
+            value           VARCHAR,
+            PRIMARY KEY (network_id, key)
         )
     """)
 
 
-def import_gtfs_static(conn: duckdb.DuckDBPyConnection, gtfs_dir: Path) -> None:
-    """Import GTFS static CSV files into DuckDB, replacing previous data."""
-    logger.info("Importing GTFS static data from %s", gtfs_dir)
+def _migrate_add_network_id(conn: duckdb.DuckDBPyConnection) -> None:
+    """Backfill network_id='ilevia' on rows that predate multi-network support.
+
+    Idempotent: only updates rows where network_id IS NULL or empty.
+    """
+    for table in (
+        "delay_observations",
+        "routes",
+        "stops",
+        "stop_times",
+        "trips",
+        "calendar_dates",
+        "gtfs_meta",
+    ):
+        try:
+            cols = conn.execute(f"DESCRIBE {table}").fetchall()
+            col_names = {c[0] for c in cols}
+            if "network_id" not in col_names:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN network_id VARCHAR")
+            updated = conn.execute(
+                f"UPDATE {table} SET network_id = 'ilevia' "
+                f"WHERE network_id IS NULL OR network_id = ''"
+            )
+        except Exception as exc:
+            logger.warning("Migration of %s skipped: %s", table, exc)
+
+
+def import_gtfs_static(
+    conn: duckdb.DuckDBPyConnection,
+    gtfs_dir: Path,
+    network_id: str,
+) -> None:
+    """Import GTFS static CSV files into DuckDB, replacing previous data for this network."""
+    logger.info("[%s] Importing GTFS static data from %s", network_id, gtfs_dir)
 
     # Routes
-    conn.execute("DELETE FROM routes")
+    conn.execute("DELETE FROM routes WHERE network_id = ?", [network_id])
     conn.execute(f"""
         INSERT INTO routes
-        SELECT route_id, route_short_name, route_long_name,
+        SELECT '{network_id}', route_id, route_short_name, route_long_name,
                CAST(route_type AS SMALLINT), route_color
         FROM read_csv_auto('{gtfs_dir}/routes.txt', header=true, all_varchar=true)
     """)
-    count = conn.execute("SELECT count(*) FROM routes").fetchone()[0]
-    logger.info("Imported %d routes", count)
+    count = conn.execute(
+        "SELECT count(*) FROM routes WHERE network_id = ?", [network_id]
+    ).fetchone()[0]
+    logger.info("[%s] Imported %d routes", network_id, count)
 
     # Stops
-    conn.execute("DELETE FROM stops")
+    conn.execute("DELETE FROM stops WHERE network_id = ?", [network_id])
     conn.execute(f"""
         INSERT INTO stops
-        SELECT stop_id, stop_name,
+        SELECT '{network_id}', stop_id, stop_name,
                CAST(stop_lat AS DOUBLE), CAST(stop_lon AS DOUBLE)
         FROM read_csv_auto('{gtfs_dir}/stops.txt', header=true, all_varchar=true)
     """)
-    count = conn.execute("SELECT count(*) FROM stops").fetchone()[0]
-    logger.info("Imported %d stops", count)
+    count = conn.execute(
+        "SELECT count(*) FROM stops WHERE network_id = ?", [network_id]
+    ).fetchone()[0]
+    logger.info("[%s] Imported %d stops", network_id, count)
 
     # Trips
-    conn.execute("DELETE FROM trips")
+    conn.execute("DELETE FROM trips WHERE network_id = ?", [network_id])
     conn.execute(f"""
         INSERT INTO trips
-        SELECT trip_id, route_id, service_id, trip_headsign,
+        SELECT '{network_id}', trip_id, route_id, service_id, trip_headsign,
                CAST(direction_id AS SMALLINT)
         FROM read_csv_auto('{gtfs_dir}/trips.txt', header=true, all_varchar=true)
     """)
-    count = conn.execute("SELECT count(*) FROM trips").fetchone()[0]
-    logger.info("Imported %d trips", count)
+    count = conn.execute(
+        "SELECT count(*) FROM trips WHERE network_id = ?", [network_id]
+    ).fetchone()[0]
+    logger.info("[%s] Imported %d trips", network_id, count)
 
-    # Stop times - the big one (~1.6M rows)
-    conn.execute("DELETE FROM stop_times")
+    # Stop times
+    conn.execute("DELETE FROM stop_times WHERE network_id = ?", [network_id])
     conn.execute(f"""
         INSERT INTO stop_times
-        SELECT trip_id, stop_id,
+        SELECT '{network_id}', trip_id, stop_id,
                CAST(stop_sequence AS INTEGER),
                departure_time, arrival_time
         FROM read_csv_auto('{gtfs_dir}/stop_times.txt', header=true, all_varchar=true)
     """)
-    count = conn.execute("SELECT count(*) FROM stop_times").fetchone()[0]
-    logger.info("Imported %d stop_times", count)
+    count = conn.execute(
+        "SELECT count(*) FROM stop_times WHERE network_id = ?", [network_id]
+    ).fetchone()[0]
+    logger.info("[%s] Imported %d stop_times", network_id, count)
 
     # Calendar dates
-    conn.execute("DELETE FROM calendar_dates")
+    conn.execute("DELETE FROM calendar_dates WHERE network_id = ?", [network_id])
     cal_file = gtfs_dir / "calendar_dates.txt"
     if cal_file.exists():
         conn.execute(f"""
             INSERT INTO calendar_dates
-            SELECT service_id, date, CAST(exception_type AS SMALLINT)
+            SELECT '{network_id}', service_id, date, CAST(exception_type AS SMALLINT)
             FROM read_csv_auto('{gtfs_dir}/calendar_dates.txt', header=true, all_varchar=true)
         """)
-        count = conn.execute("SELECT count(*) FROM calendar_dates").fetchone()[0]
-        logger.info("Imported %d calendar_dates", count)
+        count = conn.execute(
+            "SELECT count(*) FROM calendar_dates WHERE network_id = ?", [network_id]
+        ).fetchone()[0]
+        logger.info("[%s] Imported %d calendar_dates", network_id, count)
 
-    # Create indexes for fast lookups
+    # Indexes (shared across networks)
     conn.execute("DROP INDEX IF EXISTS idx_stop_times_trip")
-    conn.execute("CREATE INDEX idx_stop_times_trip ON stop_times(trip_id)")
+    conn.execute("CREATE INDEX idx_stop_times_trip ON stop_times(network_id, trip_id)")
     conn.execute("DROP INDEX IF EXISTS idx_calendar_dates_service")
-    conn.execute("CREATE INDEX idx_calendar_dates_service ON calendar_dates(service_id, date)")
+    conn.execute(
+        "CREATE INDEX idx_calendar_dates_service ON calendar_dates(network_id, service_id, date)"
+    )
+    conn.execute("DROP INDEX IF EXISTS idx_obs_network_route")
+    conn.execute(
+        "CREATE INDEX idx_obs_network_route ON delay_observations(network_id, route_id)"
+    )
 
 
-def insert_observations(conn: duckdb.DuckDBPyConnection, observations: list[dict]) -> None:
-    """Batch insert delay observations."""
+def insert_observations(
+    conn: duckdb.DuckDBPyConnection, observations: list[dict]
+) -> None:
+    """Batch insert delay observations. Each obs dict must have network_id."""
     if not observations:
         return
     conn.executemany(
         """
-        INSERT INTO delay_observations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO delay_observations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
+                obs["network_id"],
                 obs["observed_at"],
                 obs["trip_id"],
                 obs["route_id"],
@@ -182,13 +244,13 @@ def insert_observations(conn: duckdb.DuckDBPyConnection, observations: list[dict
 
 
 def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
-    """Remove duplicate observations, keeping the last one per (trip_id, stop_id, scheduled_dep)."""
+    """Remove duplicate observations, keeping the last one per (network_id, trip_id, stop_id, scheduled_dep)."""
     before = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
     conn.execute("""
         CREATE TABLE delay_observations_dedup AS
         SELECT * FROM (
             SELECT *, row_number() OVER (
-                PARTITION BY trip_id, stop_id, scheduled_dep
+                PARTITION BY network_id, trip_id, stop_id, scheduled_dep
                 ORDER BY feed_timestamp DESC
             ) as rn
             FROM delay_observations
@@ -196,40 +258,54 @@ def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
     """)
     conn.execute("DROP TABLE delay_observations")
     conn.execute("ALTER TABLE delay_observations_dedup RENAME TO delay_observations")
-    # Drop the rn column
     conn.execute("ALTER TABLE delay_observations DROP COLUMN rn")
     after = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
-    logger.info("Deduplicated observations: %d -> %d (removed %d)", before, after, before - after)
+    logger.info(
+        "Deduplicated observations: %d -> %d (removed %d)", before, after, before - after
+    )
 
 
 def get_scheduled_times(
-    conn: duckdb.DuckDBPyConnection, trip_id: str
+    conn: duckdb.DuckDBPyConnection, network_id: str, trip_id: str
 ) -> dict[int, str]:
-    """Return {stop_sequence: departure_time} for a given trip."""
+    """Return {stop_sequence: departure_time} for a given (network, trip)."""
     rows = conn.execute(
-        "SELECT stop_sequence, departure_time FROM stop_times WHERE trip_id = ?",
-        [trip_id],
+        "SELECT stop_sequence, departure_time FROM stop_times "
+        "WHERE network_id = ? AND trip_id = ?",
+        [network_id, trip_id],
     ).fetchall()
     return {seq: dep for seq, dep in rows}
 
 
 def get_active_service_ids(
-    conn: duckdb.DuckDBPyConnection, date_str: str
+    conn: duckdb.DuckDBPyConnection, network_id: str, date_str: str
 ) -> set[str]:
-    """Return service_ids active on a given date (YYYYMMDD format)."""
+    """Return service_ids active on a given date (YYYYMMDD format) for a network."""
     rows = conn.execute(
-        "SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 1",
-        [date_str],
+        "SELECT service_id FROM calendar_dates "
+        "WHERE network_id = ? AND date = ? AND exception_type = 1",
+        [network_id, date_str],
     ).fetchall()
     return {r[0] for r in rows}
 
 
 def get_trip_service_id(
-    conn: duckdb.DuckDBPyConnection, trip_id: str
+    conn: duckdb.DuckDBPyConnection, network_id: str, trip_id: str
 ) -> str | None:
-    """Return the service_id for a trip, or None if not found."""
+    """Return the service_id for a (network, trip), or None if not found."""
     row = conn.execute(
-        "SELECT service_id FROM trips WHERE trip_id = ?",
-        [trip_id],
+        "SELECT service_id FROM trips WHERE network_id = ? AND trip_id = ?",
+        [network_id, trip_id],
     ).fetchone()
     return row[0] if row else None
+
+
+def last_observation_at(
+    conn: duckdb.DuckDBPyConnection, network_id: str
+) -> str | None:
+    """Most recent observed_at for a network, or None if no data yet."""
+    row = conn.execute(
+        "SELECT max(observed_at) FROM delay_observations WHERE network_id = ?",
+        [network_id],
+    ).fetchone()
+    return str(row[0]) if row and row[0] else None

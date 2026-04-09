@@ -6,15 +6,15 @@
   <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="description" content="Statistiques de ponctualit&eacute; des transports en commun Il&eacute;via Lille">
-  <meta property="og:title" content="Keleur — Ponctualit&eacute; transports Lille">
-  <meta property="og:description" content="Votre bus est-il vraiment &agrave; l'heure ? Statistiques ind&eacute;pendantes bas&eacute;es sur les donn&eacute;es temps r&eacute;el Il&eacute;via.">
+  <meta name="description" content="Statistiques ind&eacute;pendantes de ponctualit&eacute; des transports en commun en France : bus, tram et m&eacute;tro de 10 grandes m&eacute;tropoles.">
+  <meta property="og:title" content="Keleur — Ponctualit&eacute; r&eacute;elle des transports en France">
+  <meta property="og:description" content="Votre bus est-il vraiment &agrave; l'heure ? Statistiques ind&eacute;pendantes calcul&eacute;es &agrave; partir des donn&eacute;es temps r&eacute;el publiques des r&eacute;seaux de transport fran&ccedil;ais.">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="fr_FR">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Keleur — Ponctualit&eacute; transports Lille">
-  <meta name="twitter:description" content="Votre bus est-il vraiment &agrave; l'heure ? Statistiques ind&eacute;pendantes bas&eacute;es sur les donn&eacute;es temps r&eacute;el Il&eacute;via.">
-  <title>Keleur</title>
+  <meta name="twitter:title" content="Keleur — Ponctualit&eacute; r&eacute;elle des transports en France">
+  <meta name="twitter:description" content="Statistiques ind&eacute;pendantes de ponctualit&eacute; des transports en commun en France.">
+  <title>Keleur — Ponctualit&eacute; des transports en France</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚌</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,6 +27,10 @@
   <header>
     <nav>
       <a href="#/" class="logo">Keleur</a>
+      <button id="network-switcher" class="network-switcher" type="button" aria-label="Changer de r&eacute;seau">
+        <span class="network-switcher-city">…</span>
+        <span class="network-switcher-arrow">▾</span>
+      </button>
       <div class="nav-links">
         <a href="#/">Accueil</a>
         <a href="#/search">Recherche</a>
