@@ -267,14 +267,12 @@ def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
             "Deduplicated observations: %d -> %d (removed %d)", before, after, before - after
         )
     except Exception:
-        # Schema mismatch from older DB version — drop and recreate
-        logger.warning("Dedup failed (schema mismatch?), recreating observations table")
+        # Dedup failed — clean up temp table but NEVER drop observations data
+        logger.exception("Dedup failed, skipping (observations data preserved)")
         try:
             conn.execute("DROP TABLE IF EXISTS delay_observations_dedup")
-            conn.execute("DROP TABLE IF EXISTS delay_observations")
         except Exception:
             pass
-        _init_schema(conn)
 
 
 def get_scheduled_times(
