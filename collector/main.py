@@ -140,16 +140,28 @@ class Collector:
             hour=0, minute=0, second=0, microsecond=0
         )
 
+    def init_static(self) -> bool:
+        """Load GTFS static data (called sequentially from MultiCollector).
+        Returns True if successful."""
+        try:
+            self._refresh_static(force=False)
+            return True
+        except Exception:
+            logger.exception("[%s] Initial GTFS static load failed", self._network.id)
+            return False
+
     def run(self) -> None:
         nid = self._network.id
         logger.info("[%s] Collector starting", nid)
 
-        # Initial GTFS static load
-        try:
-            self._refresh_static(force=False)
-        except Exception:
-            logger.exception("[%s] Initial GTFS static load failed", nid)
-            return
+        # Static data should already be loaded by MultiCollector.
+        # If not, try once more.
+        if not self._is_static_loaded():
+            try:
+                self._refresh_static(force=False)
+            except Exception:
+                logger.exception("[%s] Initial GTFS static load failed", nid)
+                return
 
         self._last_flush = time.monotonic()
         self._last_static_refresh = time.monotonic()
@@ -347,12 +359,19 @@ class MultiCollector:
             ", ".join(n.id for n in active),
         )
 
+        # Phase 1: Load GTFS static data SEQUENTIALLY to avoid OOM
+        # (10 parallel downloads + DB imports can exhaust memory on small VPS)
         for net in active:
             c = Collector(net, self._conn)
-            t = threading.Thread(
-                target=c.run, daemon=True, name=f"collector-{net.id}"
-            )
+            logger.info("[%s] Loading GTFS static data…", net.id)
+            c.init_static()
             self._collectors.append(c)
+
+        # Phase 2: Start polling threads (lightweight, safe in parallel)
+        for c in self._collectors:
+            t = threading.Thread(
+                target=c.run, daemon=True, name=f"collector-{c.network.id}"
+            )
             self._threads.append(t)
             t.start()
 
