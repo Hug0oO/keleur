@@ -118,8 +118,9 @@ class Collector:
         self._network = network
         self._tz = ZoneInfo(network.timezone)
         self._running = True
-        self._conn = conn
-        self._schedule_cache = ScheduleCache(conn, network.id)
+        # Each collector gets its own cursor for thread-safe DB access
+        self._conn = conn.cursor()
+        self._schedule_cache = ScheduleCache(self._conn, network.id)
         self._buffer: dict[tuple[str, int], dict] = {}
         self._previous_keys: set[tuple[str, int]] = set()
         self._last_flush: float = 0

@@ -40,8 +40,7 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             short_name      VARCHAR,
             long_name       VARCHAR,
             route_type      SMALLINT,
-            color           VARCHAR,
-            PRIMARY KEY (network_id, route_id)
+            color           VARCHAR
         )
     """)
 
@@ -51,8 +50,7 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             stop_id         VARCHAR,
             stop_name       VARCHAR,
             lat             DOUBLE,
-            lon             DOUBLE,
-            PRIMARY KEY (network_id, stop_id)
+            lon             DOUBLE
         )
     """)
 
@@ -74,8 +72,7 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             route_id        VARCHAR,
             service_id      VARCHAR,
             trip_headsign   VARCHAR,
-            direction_id    SMALLINT,
-            PRIMARY KEY (network_id, trip_id)
+            direction_id    SMALLINT
         )
     """)
 
@@ -92,10 +89,20 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE IF NOT EXISTS gtfs_meta (
             network_id      VARCHAR,
             key             VARCHAR,
-            value           VARCHAR,
-            PRIMARY KEY (network_id, key)
+            value           VARCHAR
         )
     """)
+
+    # Indexes — created once, safe for concurrent reads
+    for stmt in [
+        "CREATE INDEX IF NOT EXISTS idx_stop_times_trip ON stop_times(network_id, trip_id)",
+        "CREATE INDEX IF NOT EXISTS idx_calendar_dates_service ON calendar_dates(network_id, service_id, date)",
+        "CREATE INDEX IF NOT EXISTS idx_obs_network_route ON delay_observations(network_id, route_id)",
+    ]:
+        try:
+            conn.execute(stmt)
+        except Exception:
+            pass  # Index may already exist from previous schema version
 
 
 def _migrate_add_network_id(conn: duckdb.DuckDBPyConnection) -> None:
@@ -133,39 +140,42 @@ def import_gtfs_static(
     """Import GTFS static CSV files into DuckDB, replacing previous data for this network."""
     logger.info("[%s] Importing GTFS static data from %s", network_id, gtfs_dir)
 
-    # Routes
+    # Routes (DISTINCT ON route_id: some GTFS feeds have duplicate route entries)
     conn.execute("DELETE FROM routes WHERE network_id = ?", [network_id])
     conn.execute(f"""
-        INSERT INTO routes
-        SELECT '{network_id}', route_id, route_short_name, route_long_name,
-               CAST(route_type AS SMALLINT), route_color
+        INSERT INTO routes (network_id, route_id, short_name, long_name, route_type, color)
+        SELECT '{network_id}', route_id, first(route_short_name), first(route_long_name),
+               CAST(first(route_type) AS SMALLINT), first(route_color)
         FROM read_csv_auto('{gtfs_dir}/routes.txt', header=true, all_varchar=true)
+        GROUP BY route_id
     """)
     count = conn.execute(
         "SELECT count(*) FROM routes WHERE network_id = ?", [network_id]
     ).fetchone()[0]
     logger.info("[%s] Imported %d routes", network_id, count)
 
-    # Stops
+    # Stops (GROUP BY stop_id: some GTFS feeds have duplicate stop entries)
     conn.execute("DELETE FROM stops WHERE network_id = ?", [network_id])
     conn.execute(f"""
-        INSERT INTO stops
-        SELECT '{network_id}', stop_id, stop_name,
-               CAST(stop_lat AS DOUBLE), CAST(stop_lon AS DOUBLE)
+        INSERT INTO stops (network_id, stop_id, stop_name, lat, lon)
+        SELECT '{network_id}', stop_id, first(stop_name),
+               CAST(first(stop_lat) AS DOUBLE), CAST(first(stop_lon) AS DOUBLE)
         FROM read_csv_auto('{gtfs_dir}/stops.txt', header=true, all_varchar=true)
+        GROUP BY stop_id
     """)
     count = conn.execute(
         "SELECT count(*) FROM stops WHERE network_id = ?", [network_id]
     ).fetchone()[0]
     logger.info("[%s] Imported %d stops", network_id, count)
 
-    # Trips
+    # Trips (GROUP BY trip_id: some GTFS feeds have duplicate trip entries)
     conn.execute("DELETE FROM trips WHERE network_id = ?", [network_id])
     conn.execute(f"""
-        INSERT INTO trips
-        SELECT '{network_id}', trip_id, route_id, service_id, trip_headsign,
-               CAST(direction_id AS SMALLINT)
+        INSERT INTO trips (network_id, trip_id, route_id, service_id, trip_headsign, direction_id)
+        SELECT '{network_id}', trip_id, first(route_id), first(service_id), first(trip_headsign),
+               CAST(first(direction_id) AS SMALLINT)
         FROM read_csv_auto('{gtfs_dir}/trips.txt', header=true, all_varchar=true)
+        GROUP BY trip_id
     """)
     count = conn.execute(
         "SELECT count(*) FROM trips WHERE network_id = ?", [network_id]
@@ -175,7 +185,7 @@ def import_gtfs_static(
     # Stop times
     conn.execute("DELETE FROM stop_times WHERE network_id = ?", [network_id])
     conn.execute(f"""
-        INSERT INTO stop_times
+        INSERT INTO stop_times (network_id, trip_id, stop_id, stop_sequence, departure_time, arrival_time)
         SELECT '{network_id}', trip_id, stop_id,
                CAST(stop_sequence AS INTEGER),
                departure_time, arrival_time
@@ -191,7 +201,7 @@ def import_gtfs_static(
     cal_file = gtfs_dir / "calendar_dates.txt"
     if cal_file.exists():
         conn.execute(f"""
-            INSERT INTO calendar_dates
+            INSERT INTO calendar_dates (network_id, service_id, date, exception_type)
             SELECT '{network_id}', service_id, date, CAST(exception_type AS SMALLINT)
             FROM read_csv_auto('{gtfs_dir}/calendar_dates.txt', header=true, all_varchar=true)
         """)
@@ -200,17 +210,7 @@ def import_gtfs_static(
         ).fetchone()[0]
         logger.info("[%s] Imported %d calendar_dates", network_id, count)
 
-    # Indexes (shared across networks)
-    conn.execute("DROP INDEX IF EXISTS idx_stop_times_trip")
-    conn.execute("CREATE INDEX idx_stop_times_trip ON stop_times(network_id, trip_id)")
-    conn.execute("DROP INDEX IF EXISTS idx_calendar_dates_service")
-    conn.execute(
-        "CREATE INDEX idx_calendar_dates_service ON calendar_dates(network_id, service_id, date)"
-    )
-    conn.execute("DROP INDEX IF EXISTS idx_obs_network_route")
-    conn.execute(
-        "CREATE INDEX idx_obs_network_route ON delay_observations(network_id, route_id)"
-    )
+    # Indexes are created once at startup in _init_schema, not per-import
 
 
 def insert_observations(
@@ -245,24 +245,36 @@ def insert_observations(
 
 def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
     """Remove duplicate observations, keeping the last one per (network_id, trip_id, stop_id, scheduled_dep)."""
-    before = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
-    conn.execute("""
-        CREATE TABLE delay_observations_dedup AS
-        SELECT * FROM (
-            SELECT *, row_number() OVER (
-                PARTITION BY network_id, trip_id, stop_id, scheduled_dep
-                ORDER BY feed_timestamp DESC
-            ) as rn
-            FROM delay_observations
-        ) WHERE rn = 1
-    """)
-    conn.execute("DROP TABLE delay_observations")
-    conn.execute("ALTER TABLE delay_observations_dedup RENAME TO delay_observations")
-    conn.execute("ALTER TABLE delay_observations DROP COLUMN rn")
-    after = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
-    logger.info(
-        "Deduplicated observations: %d -> %d (removed %d)", before, after, before - after
-    )
+    try:
+        before = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
+        if before == 0:
+            return
+        conn.execute("""
+            CREATE TABLE delay_observations_dedup AS
+            SELECT * FROM (
+                SELECT *, row_number() OVER (
+                    PARTITION BY network_id, trip_id, stop_id, scheduled_dep
+                    ORDER BY feed_timestamp DESC
+                ) as rn
+                FROM delay_observations
+            ) WHERE rn = 1
+        """)
+        conn.execute("DROP TABLE delay_observations")
+        conn.execute("ALTER TABLE delay_observations_dedup RENAME TO delay_observations")
+        conn.execute("ALTER TABLE delay_observations DROP COLUMN rn")
+        after = conn.execute("SELECT count(*) FROM delay_observations").fetchone()[0]
+        logger.info(
+            "Deduplicated observations: %d -> %d (removed %d)", before, after, before - after
+        )
+    except Exception:
+        # Schema mismatch from older DB version — drop and recreate
+        logger.warning("Dedup failed (schema mismatch?), recreating observations table")
+        try:
+            conn.execute("DROP TABLE IF EXISTS delay_observations_dedup")
+            conn.execute("DROP TABLE IF EXISTS delay_observations")
+        except Exception:
+            pass
+        _init_schema(conn)
 
 
 def get_scheduled_times(
