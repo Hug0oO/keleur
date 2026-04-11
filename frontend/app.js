@@ -7,14 +7,20 @@ const app = () => $("#app");
 
 let _networks = null;          // cached list from /api/networks
 const NETWORK_KEY = "keleur_network";
+const NETWORK_CHOSEN_KEY = "keleur_network_chosen"; // explicit user pick
 const DEFAULT_NETWORK = "ilevia";
 
 function currentNetwork() {
   return localStorage.getItem(NETWORK_KEY) || DEFAULT_NETWORK;
 }
 
+function hasExplicitlyChosenNetwork() {
+  return localStorage.getItem(NETWORK_CHOSEN_KEY) === "1";
+}
+
 function setNetwork(id) {
   localStorage.setItem(NETWORK_KEY, id);
+  localStorage.setItem(NETWORK_CHOSEN_KEY, "1");
   updateNetworkSwitcherLabel();
   // Force a route re-render so the new network's data is loaded
   route();
@@ -613,6 +619,22 @@ async function viewOverview() {
           </ul>
         `).join("")}
 
+      ${(() => {
+        const others = _networks ? _networks.filter((n) => n.enabled && n.id !== currentNetwork()) : [];
+        if (!others.length) return "";
+        return `
+          <h2 class="section-title">Autres villes</h2>
+          <div class="other-cities">
+            ${others.map((n) => `
+              <button class="other-city-btn" data-id="${n.id}">
+                <span class="other-city-dot" style="background:#${n.color}"></span>
+                <span class="other-city-name">${n.city}</span>
+              </button>
+            `).join("")}
+          </div>
+        `;
+      })()}
+
       <a href="#/about" class="about-link-card">
         <span class="about-link-icon">&#x1F4D6;</span>
         <div class="about-link-text">
@@ -622,6 +644,14 @@ async function viewOverview() {
         <span class="about-link-arrow">\u203A</span>
       </a>
     `;
+
+    // Bind other cities buttons
+    app().querySelectorAll(".other-city-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setNetwork(btn.dataset.id);
+      });
+    });
+
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-text">Erreur de chargement : ${err.message}</div></div>`;
   }
@@ -1419,6 +1449,37 @@ async function viewAbout() {
   `;
 }
 
+// ── Welcome screen (first visit) ────────────────────────────
+
+function showWelcomeScreen() {
+  const enabled = _networks ? _networks.filter((n) => n.enabled) : [];
+  app().innerHTML = `
+    <div class="welcome">
+      <div class="welcome-header">
+        <div class="welcome-logo">Keleur</div>
+        <p class="welcome-sub">Ponctualité réelle des transports en commun</p>
+      </div>
+      <h2 class="welcome-title">Choisissez votre ville</h2>
+      <div class="welcome-grid">
+        ${enabled.map((n) => `
+          <button class="welcome-city" data-id="${n.id}">
+            <span class="welcome-city-dot" style="background:#${n.color}"></span>
+            <span class="welcome-city-name">${n.city}</span>
+            <span class="welcome-city-network">${n.name}</span>
+          </button>
+        `).join("")}
+      </div>
+      <p class="welcome-footer">Données temps réel publiques · ${enabled.length} réseaux</p>
+    </div>
+  `;
+  app().querySelectorAll(".welcome-city").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setNetwork(btn.dataset.id);
+      location.hash = "#/";
+    });
+  });
+}
+
 // ── Network switcher ─────────────────────────────────────────
 
 function updateNetworkSwitcherLabel() {
@@ -1561,6 +1622,12 @@ if ("serviceWorker" in navigator) {
 
   const switcherBtn = document.getElementById("network-switcher");
   if (switcherBtn) switcherBtn.addEventListener("click", openNetworkPicker);
+
+  // First visit: show city picker instead of defaulting silently to Lille
+  if (!hasExplicitlyChosenNetwork() && (location.hash === "" || location.hash === "#/")) {
+    showWelcomeScreen();
+    return;
+  }
 
   route();
 })();
