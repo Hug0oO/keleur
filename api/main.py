@@ -714,7 +714,10 @@ def overview(network_id: str):
 
 @app.get("/")
 def serve_index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(
+        FRONTEND_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, must-revalidate"},
+    )
 
 
 # Mount static files AFTER API routes so /api/* takes priority

@@ -1,5 +1,28 @@
 /* ── Keleur PWA ─────────────────────────────────────────────── */
 
+const APP_VERSION = "2";
+const APP_VERSION_KEY = "keleur_version";
+
+// Auto-clear stale caches & state on version bump
+(function migrateVersion() {
+  const prev = localStorage.getItem(APP_VERSION_KEY);
+  if (prev !== APP_VERSION) {
+    // Clear service worker caches
+    if ("caches" in window) {
+      caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+    }
+    // Re-register service worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) =>
+        regs.forEach((r) => r.unregister())
+      );
+    }
+    // Reset network choice so welcome screen shows
+    localStorage.removeItem("keleur_network_chosen");
+    localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
+  }
+})();
+
 const $ = (s) => document.querySelector(s);
 const app = () => $("#app");
 
