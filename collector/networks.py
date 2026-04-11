@@ -125,7 +125,7 @@ NETWORKS: list[Network] = [
         gtfs_static_url="https://data.montpellier3m.fr/sites/default/files/ressources/TAM_MMM_GTFS.zip",
         color="e6007e",
         school_zone="C",
-        enabled=True,
+        enabled=False,  # RT feed uses different trip_ids than static GTFS
     ),
     Network(
         id="mistral",

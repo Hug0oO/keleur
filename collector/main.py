@@ -77,7 +77,7 @@ class ScheduleCache:
                 date_str,
             )
 
-    def get(self, trip_id: str) -> dict[int, str] | None:
+    def get(self, trip_id: str) -> dict | None:
         if trip_id not in self._cache:
             service_id = database.get_trip_service_id(
                 self._conn, self._network_id, trip_id
@@ -92,7 +92,7 @@ class ScheduleCache:
             times = database.get_scheduled_times(
                 self._conn, self._network_id, trip_id
             )
-            self._cache[trip_id] = times if times else None
+            self._cache[trip_id] = times if times and times["by_seq"] else None
         return self._cache[trip_id]
 
     def evict(self, trip_ids: set[str]) -> None:
@@ -234,11 +234,14 @@ class Collector:
             key = (su.trip_id, su.stop_sequence)
             current_keys.add(key)
 
-            sched_times = self._schedule_cache.get(su.trip_id)
-            if sched_times is None:
+            sched_data = self._schedule_cache.get(su.trip_id)
+            if sched_data is None:
                 _dbg_no_sched += 1
                 continue
-            sched_str = sched_times.get(su.stop_sequence)
+            # Try stop_sequence first, fall back to stop_id
+            sched_str = sched_data["by_seq"].get(su.stop_sequence)
+            if sched_str is None:
+                sched_str = sched_data["by_stop"].get(su.stop_id)
             if sched_str is None:
                 _dbg_no_seq += 1
                 continue

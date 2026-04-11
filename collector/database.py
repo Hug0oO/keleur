@@ -313,14 +313,22 @@ def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
 
 def get_scheduled_times(
     conn: duckdb.DuckDBPyConnection, network_id: str, trip_id: str
-) -> dict[int, str]:
-    """Return {stop_sequence: departure_time} for a given (network, trip)."""
+) -> dict:
+    """Return schedule lookup for a given (network, trip).
+
+    Returns {"by_seq": {stop_sequence: dep_time}, "by_stop": {stop_id: dep_time}}
+    so callers can fall back to stop_id matching when stop_sequence is 0-indexed
+    in the RT feed but 1-indexed in the static GTFS.
+    """
     rows = conn.execute(
-        "SELECT stop_sequence, departure_time FROM stop_times "
+        "SELECT stop_sequence, stop_id, departure_time FROM stop_times "
         "WHERE network_id = ? AND trip_id = ?",
         [network_id, trip_id],
     ).fetchall()
-    return {seq: dep for seq, dep in rows}
+    return {
+        "by_seq": {seq: dep for seq, _, dep in rows},
+        "by_stop": {sid: dep for _, sid, dep in rows},
+    }
 
 
 def get_active_service_ids(
