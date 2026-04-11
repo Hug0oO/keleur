@@ -305,10 +305,24 @@ class Collector:
         gtfs_dir, changed = gtfs_static.download_and_extract(
             self._network, force=force
         )
-        if changed or not self._is_static_loaded():
+        # Also reimport if calendar table is missing data (new table added)
+        cal_file_exists = (gtfs_dir / "calendar.txt").exists()
+        cal_empty = self._calendar_count() == 0
+        needs_reimport = cal_file_exists and cal_empty
+
+        if changed or not self._is_static_loaded() or needs_reimport:
             database.import_gtfs_static(self._conn, gtfs_dir, self._network.id)
             self._schedule_cache.clear()
             logger.info("[%s] GTFS static loaded into database", self._network.id)
+
+    def _calendar_count(self) -> int:
+        try:
+            return self._conn.execute(
+                "SELECT count(*) FROM calendar WHERE network_id = ?",
+                [self._network.id],
+            ).fetchone()[0]
+        except Exception:
+            return 0
 
     def _is_static_loaded(self) -> bool:
         st = self._conn.execute(
@@ -319,14 +333,7 @@ class Collector:
             "SELECT count(*) FROM calendar_dates WHERE network_id = ?",
             [self._network.id],
         ).fetchone()[0]
-        cal = 0
-        try:
-            cal = self._conn.execute(
-                "SELECT count(*) FROM calendar WHERE network_id = ?",
-                [self._network.id],
-            ).fetchone()[0]
-        except Exception:
-            pass
+        cal = self._calendar_count()
         return st > 0 and (cd > 0 or cal > 0)
 
 
