@@ -319,7 +319,15 @@ class Collector:
             "SELECT count(*) FROM calendar_dates WHERE network_id = ?",
             [self._network.id],
         ).fetchone()[0]
-        return st > 0 and cd > 0
+        cal = 0
+        try:
+            cal = self._conn.execute(
+                "SELECT count(*) FROM calendar WHERE network_id = ?",
+                [self._network.id],
+            ).fetchone()[0]
+        except Exception:
+            pass
+        return st > 0 and (cd > 0 or cal > 0)
 
 
 # ── Multi-network orchestrator ─────────────────────────────────────────

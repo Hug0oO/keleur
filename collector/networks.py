@@ -164,7 +164,7 @@ NETWORKS: list[Network] = [
         gtfs_static_url="https://api.mrn.cityway.fr/dataflow/offre-tc/download?provider=ASTUCE&dataFormat=gtfs&dataProfil=ASTUCE",
         color="ed1c24",
         school_zone="B",
-        enabled=True,
+        enabled=False,  # RT feed uses different trip_ids than static GTFS
     ),
     Network(
         id="citura",

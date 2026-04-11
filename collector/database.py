@@ -77,6 +77,22 @@ def _init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS calendar (
+            network_id      VARCHAR,
+            service_id      VARCHAR,
+            monday          SMALLINT,
+            tuesday         SMALLINT,
+            wednesday       SMALLINT,
+            thursday        SMALLINT,
+            friday          SMALLINT,
+            saturday        SMALLINT,
+            sunday          SMALLINT,
+            start_date      VARCHAR,
+            end_date        VARCHAR
+        )
+    """)
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS calendar_dates (
             network_id      VARCHAR,
             service_id      VARCHAR,
@@ -116,6 +132,7 @@ def _migrate_add_network_id(conn: duckdb.DuckDBPyConnection) -> None:
         "stops",
         "stop_times",
         "trips",
+        "calendar",
         "calendar_dates",
         "gtfs_meta",
     ):
@@ -196,7 +213,26 @@ def import_gtfs_static(
     ).fetchone()[0]
     logger.info("[%s] Imported %d stop_times", network_id, count)
 
-    # Calendar dates
+    # Calendar (day-of-week based service definitions)
+    conn.execute("DELETE FROM calendar WHERE network_id = ?", [network_id])
+    cal_main_file = gtfs_dir / "calendar.txt"
+    if cal_main_file.exists():
+        conn.execute(f"""
+            INSERT INTO calendar (network_id, service_id, monday, tuesday, wednesday,
+                                  thursday, friday, saturday, sunday, start_date, end_date)
+            SELECT '{network_id}', service_id,
+                   CAST(monday AS SMALLINT), CAST(tuesday AS SMALLINT),
+                   CAST(wednesday AS SMALLINT), CAST(thursday AS SMALLINT),
+                   CAST(friday AS SMALLINT), CAST(saturday AS SMALLINT),
+                   CAST(sunday AS SMALLINT), start_date, end_date
+            FROM read_csv_auto('{gtfs_dir}/calendar.txt', header=true, all_varchar=true)
+        """)
+        count = conn.execute(
+            "SELECT count(*) FROM calendar WHERE network_id = ?", [network_id]
+        ).fetchone()[0]
+        logger.info("[%s] Imported %d calendar entries", network_id, count)
+
+    # Calendar dates (exceptions: additions and removals)
     conn.execute("DELETE FROM calendar_dates WHERE network_id = ?", [network_id])
     cal_file = gtfs_dir / "calendar_dates.txt"
     if cal_file.exists():
@@ -290,13 +326,50 @@ def get_scheduled_times(
 def get_active_service_ids(
     conn: duckdb.DuckDBPyConnection, network_id: str, date_str: str
 ) -> set[str]:
-    """Return service_ids active on a given date (YYYYMMDD format) for a network."""
+    """Return service_ids active on a given date (YYYYMMDD format) for a network.
+
+    Combines calendar.txt (day-of-week ranges) and calendar_dates.txt (exceptions):
+    1. Start with services from calendar.txt whose date range covers today
+       and whose day-of-week flag is 1
+    2. Add services with exception_type=1 in calendar_dates (added)
+    3. Remove services with exception_type=2 in calendar_dates (removed)
+    """
+    # Day-of-week column: Python weekday 0=Mon → "monday", 6=Sun → "sunday"
+    from datetime import datetime
+    dt = datetime.strptime(date_str, "%Y%m%d")
+    dow_cols = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    dow_col = dow_cols[dt.weekday()]
+
+    # Step 1: services from calendar.txt active on this day-of-week and date range
+    active = set()
+    try:
+        rows = conn.execute(
+            f"SELECT service_id FROM calendar "
+            f"WHERE network_id = ? AND {dow_col} = 1 "
+            f"AND start_date <= ? AND end_date >= ?",
+            [network_id, date_str, date_str],
+        ).fetchall()
+        active = {r[0] for r in rows}
+    except Exception:
+        pass  # calendar table may not exist in old DBs
+
+    # Step 2: add exceptions (type=1)
     rows = conn.execute(
         "SELECT service_id FROM calendar_dates "
         "WHERE network_id = ? AND date = ? AND exception_type = 1",
         [network_id, date_str],
     ).fetchall()
-    return {r[0] for r in rows}
+    active |= {r[0] for r in rows}
+
+    # Step 3: remove exceptions (type=2)
+    rows = conn.execute(
+        "SELECT service_id FROM calendar_dates "
+        "WHERE network_id = ? AND date = ? AND exception_type = 2",
+        [network_id, date_str],
+    ).fetchall()
+    active -= {r[0] for r in rows}
+
+    return active
 
 
 def get_trip_service_id(
