@@ -225,16 +225,24 @@ class Collector:
 
         current_keys: set[tuple[str, int]] = set()
 
+        # Debug counters (logged once per cycle)
+        _dbg_no_sched = 0
+        _dbg_no_seq = 0
+        _dbg_ok = 0
+
         for su in snapshot.stop_updates:
             key = (su.trip_id, su.stop_sequence)
             current_keys.add(key)
 
             sched_times = self._schedule_cache.get(su.trip_id)
             if sched_times is None:
+                _dbg_no_sched += 1
                 continue
             sched_str = sched_times.get(su.stop_sequence)
             if sched_str is None:
+                _dbg_no_seq += 1
                 continue
+            _dbg_ok += 1
 
             scheduled_dep = _parse_gtfs_time(sched_str, service_date)
             realtime_dep = datetime.fromtimestamp(
@@ -283,6 +291,14 @@ class Collector:
             self._schedule_cache.evict(completed_trips)
 
         self._previous_keys = current_keys
+
+        # Log match stats when many updates go unmatched (helps diagnose issues)
+        total = len(snapshot.stop_updates)
+        if total > 0 and _dbg_ok == 0:
+            logger.warning(
+                "[%s] Poll: %d updates but 0 matched (%d no_schedule, %d no_stop_seq)",
+                self._network.id, total, _dbg_no_sched, _dbg_no_seq,
+            )
 
         # Safety flush
         if time.monotonic() - self._last_flush > config.SAFETY_FLUSH_SECONDS:
