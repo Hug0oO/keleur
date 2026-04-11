@@ -720,5 +720,14 @@ def serve_index():
     )
 
 
+@app.get("/sw.js")
+def serve_sw():
+    return FileResponse(
+        FRONTEND_DIR / "sw.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, must-revalidate"},
+    )
+
+
 # Mount static files AFTER API routes so /api/* takes priority
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR)), name="frontend")
