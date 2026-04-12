@@ -295,6 +295,14 @@ def deduplicate_observations(conn: duckdb.DuckDBPyConnection) -> None:
                 FROM delay_observations
             ) WHERE rn = 1
         """)
+        # Safety: verify dedup table has data before swapping
+        dedup_count = conn.execute(
+            "SELECT count(*) FROM delay_observations_dedup"
+        ).fetchone()[0]
+        if dedup_count == 0:
+            logger.error("Dedup produced 0 rows from %d — aborting to protect data", before)
+            conn.execute("DROP TABLE IF EXISTS delay_observations_dedup")
+            return
         conn.execute("DROP TABLE delay_observations")
         conn.execute("ALTER TABLE delay_observations_dedup RENAME TO delay_observations")
         conn.execute("ALTER TABLE delay_observations DROP COLUMN rn")

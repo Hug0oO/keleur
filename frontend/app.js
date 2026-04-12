@@ -587,6 +587,22 @@ async function viewOverview() {
 
       ${cityLabel ? `<div class="city-label">${cityLabel} \u2014 ${net.operator}</div>` : ""}
 
+      ${(() => {
+        const others = _networks ? _networks.filter((n) => n.enabled && n.id !== currentNetwork()) : [];
+        if (!others.length) return "";
+        return `
+          <h2 class="section-title">Autres villes</h2>
+          <div class="other-cities">
+            ${others.map((n) => `
+              <button class="other-city-btn" data-id="${n.id}">
+                <span class="other-city-dot" style="background:#${n.color}"></span>
+                <span class="other-city-name">${n.city}</span>
+              </button>
+            `).join("")}
+          </div>
+        `;
+      })()}
+
       <div class="overview-stats">
         <div class="overview-stat">
           <div class="ov-value" style="color:var(--primary)">${overview.total_observations.toLocaleString("fr")}</div>
@@ -642,30 +658,6 @@ async function viewOverview() {
           </ul>
         `).join("")}
 
-      ${(() => {
-        const others = _networks ? _networks.filter((n) => n.enabled && n.id !== currentNetwork()) : [];
-        if (!others.length) return "";
-        return `
-          <h2 class="section-title">Autres villes</h2>
-          <div class="other-cities">
-            ${others.map((n) => `
-              <button class="other-city-btn" data-id="${n.id}">
-                <span class="other-city-dot" style="background:#${n.color}"></span>
-                <span class="other-city-name">${n.city}</span>
-              </button>
-            `).join("")}
-          </div>
-        `;
-      })()}
-
-      <a href="#/about" class="about-link-card">
-        <span class="about-link-icon">&#x1F4D6;</span>
-        <div class="about-link-text">
-          <div class="about-link-title">Comment \u00e7a marche ?</div>
-          <div class="about-link-sub">D\u00e9couvrez d\u2019o\u00f9 viennent nos donn\u00e9es et comment elles sont calcul\u00e9es</div>
-        </div>
-        <span class="about-link-arrow">\u203A</span>
-      </a>
     `;
 
     // Bind other cities buttons
@@ -1087,6 +1079,40 @@ async function viewRankings() {
       api("/rankings/routes"),
     ]);
 
+    // Fetch cross-city overview data
+    await loadNetworks();
+    const enabledNets = _networks ? _networks.filter((n) => n.enabled) : [];
+    const cityOverviews = await Promise.all(
+      enabledNets.map(async (n) => {
+        try {
+          const ov = await api(`/networks/${n.id}/overview`);
+          return { ...n, ...ov };
+        } catch { return null; }
+      })
+    );
+    const cities = cityOverviews
+      .filter((c) => c && c.total_observations > 0)
+      .sort((a, b) => (b.on_time_percent || 0) - (a.on_time_percent || 0));
+
+    function renderCityList() {
+      if (!cities.length) return `<div class="empty"><div class="empty-text">Pas assez de donn\u00e9es</div></div>`;
+      return cities.map((c, i) => `
+        <div class="ranking-item city-ranking-item" data-network="${c.id}">
+          <span class="ranking-rank">#${i + 1}</span>
+          ${scoreBadge(c.on_time_percent || 0)}
+          <span class="route-badge" style="background:#${c.color};color:#fff;min-width:2.5rem;text-align:center">${c.city.slice(0, 3)}</span>
+          <div class="ranking-info">
+            <div class="ranking-name">${c.city}</div>
+            <div class="ranking-meta">${c.name} \u00b7 ${c.total_observations.toLocaleString("fr")} passages \u00b7 ${c.routes_count} lignes</div>
+          </div>
+          <div class="ranking-delay">
+            <div class="delay-value" style="color:${c.avg_late_delay_seconds ? "var(--red)" : "var(--green)"}">${c.avg_late_delay_seconds ? formatDelay(Math.round(c.avg_late_delay_seconds), true) : "\u00e0 l\u2019heure"}</div>
+            <div class="ranking-ontime">${(c.on_time_percent || 0).toFixed(0)}% \u00e0 l\u2019heure</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
     function renderStopList(items) {
       if (!items.length) return `<div class="empty"><div class="empty-text">Pas assez de donn\u00e9es</div></div>`;
       return items.map((s, i) => `
@@ -1125,23 +1151,30 @@ async function viewRankings() {
       `).join("");
     }
 
+    const net = getNetworkInfo(currentNetwork());
+
     app().innerHTML = `
       <div class="pill-group" style="margin-bottom:1rem" id="ranking-tabs">
-        <button class="pill active" data-tab="stops">Arr\u00eats</button>
+        <button class="pill active" data-tab="cities">Villes</button>
+        <button class="pill" data-tab="stops">Arr\u00eats</button>
         <button class="pill" data-tab="routes">Lignes</button>
       </div>
 
       <div id="ranking-content">
-        <div id="tab-stops">
-          <h2 class="section-title" style="margin-top:0">Pires arr\u00eats</h2>
+        <div id="tab-cities">
+          <h2 class="section-title" style="margin-top:0">Ponctualit\u00e9 par ville</h2>
+          ${renderCityList()}
+        </div>
+        <div id="tab-stops" style="display:none">
+          <h2 class="section-title" style="margin-top:0">Pires arr\u00eats ${net ? `\u00b7 ${net.city}` : ""}</h2>
           ${renderStopList(stops.worst)}
-          <h2 class="section-title">Meilleurs arr\u00eats</h2>
+          <h2 class="section-title">Meilleurs arr\u00eats ${net ? `\u00b7 ${net.city}` : ""}</h2>
           ${renderStopList(stops.best)}
         </div>
         <div id="tab-routes" style="display:none">
-          <h2 class="section-title" style="margin-top:0">Pires lignes</h2>
+          <h2 class="section-title" style="margin-top:0">Pires lignes ${net ? `\u00b7 ${net.city}` : ""}</h2>
           ${renderRouteList(routes.worst)}
-          <h2 class="section-title">Meilleures lignes</h2>
+          <h2 class="section-title">Meilleures lignes ${net ? `\u00b7 ${net.city}` : ""}</h2>
           ${renderRouteList(routes.best)}
         </div>
       </div>
@@ -1156,9 +1189,16 @@ async function viewRankings() {
         document.querySelectorAll("#ranking-tabs .pill").forEach((p) => p.classList.remove("active"));
         pill.classList.add("active");
         const tab = pill.dataset.tab;
+        document.getElementById("tab-cities").style.display = tab === "cities" ? "" : "none";
         document.getElementById("tab-stops").style.display = tab === "stops" ? "" : "none";
         document.getElementById("tab-routes").style.display = tab === "routes" ? "" : "none";
       });
+    });
+
+    // Clicking a city switches to that network
+    document.querySelectorAll(".city-ranking-item").forEach((item) => {
+      item.style.cursor = "pointer";
+      item.addEventListener("click", () => setNetwork(item.dataset.network));
     });
   } catch (err) {
     app().innerHTML = `<div class="empty"><div class="empty-text">Erreur de chargement : ${err.message}</div></div>`;
