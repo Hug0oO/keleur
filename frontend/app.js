@@ -1583,8 +1583,11 @@ function openNetworkPicker() {
       const id = btn.dataset.id;
       overlay.remove();
       if (id !== currentNetwork()) {
-        // Reset to home view when changing network — keeps things simple
-        location.hash = "#/";
+        // If on a route-specific page, go back to overview (route_ids differ per network)
+        const h = location.hash || "#/";
+        if (h.startsWith("#/route/") || h.startsWith("#/route-stats/")) {
+          location.hash = "#/";
+        }
         setNetwork(id);
       }
     });
